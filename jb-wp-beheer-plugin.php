@@ -3,7 +3,7 @@
  * Plugin Name:       JB WP Beheer Plugin
  * Plugin URI:        https://github.com/joshuabink/jb-wp-beheer-plugin
  * Description:       Professioneel klantdashboard voor WordPress websites.
- * Version:           4.0.2-debug
+ * Version:           4.0.2
  * Author:            Joshua Bink
  * Author URI:        https://github.com/joshuabink
  * License:           GPL-2.0-or-later
@@ -33,7 +33,7 @@ if ( defined( 'JBWP_PLUGIN_VERSION' ) ) {
 // ── Plugin identity ──────────────────────────────────────────────────────────
 // Public-facing identifiers (slug, version, paths). Keep in sync with the
 // header above so the auto-updater and WP plugin screens use the same values.
-define( 'JBWP_PLUGIN_VERSION', '4.0.2-debug' );
+define( 'JBWP_PLUGIN_VERSION', '4.0.2' );
 define( 'JBWP_PLUGIN_SLUG',    'jb-wp-beheer-plugin' );
 define( 'JBWP_PLUGIN_FILE',    __FILE__ );
 define( 'JBWP_PLUGIN_DIR',     plugin_dir_path( __FILE__ ) );
@@ -1089,29 +1089,6 @@ add_action( 'admin_init', function () {
 } );
 
 function jbwp_sanitize_settings( $input ) {
-	// ── DIAGNOSTIC: store a snapshot of every save attempt so the debug
-	// panel in the Menu tab can show what PHP actually received. Stored in
-	// a 10-minute transient — harmless in production, invaluable when
-	// chasing "nothing is saving" bugs.
-	if ( is_array( $input ) ) {
-		$dbg_snapshot = array(
-			'time'              => current_time( 'mysql' ),
-			'has_menu_data'     => isset( $input['menu_data'] ),
-			'menu_data_len'     => isset( $input['menu_data'] ) ? strlen( (string) $input['menu_data'] ) : 0,
-			'menu_data_preview' => isset( $input['menu_data'] ) ? substr( (string) $input['menu_data'], 0, 400 ) : '',
-			'organizer_enabled' => ! empty( $input['menu_organizer_enabled'] ) ? 1 : 0,
-			'input_keys'        => array_keys( $input ),
-		);
-		if ( isset( $input['menu_data'] ) ) {
-			$dbg_decoded = json_decode( (string) $input['menu_data'], true );
-			$dbg_snapshot['decoded_ok']         = is_array( $dbg_decoded );
-			$dbg_snapshot['decoded_items_cnt']  = is_array( $dbg_decoded ) ? count( (array) ( $dbg_decoded['items']  ?? array() ) ) : 0;
-			$dbg_snapshot['decoded_groups_cnt'] = is_array( $dbg_decoded ) ? count( (array) ( $dbg_decoded['groups'] ?? array() ) ) : 0;
-			$dbg_snapshot['first_item']         = is_array( $dbg_decoded ) ? ( ( $dbg_decoded['items'][0] ?? null ) ) : null;
-		}
-		set_transient( 'jbwp_debug_last_save', $dbg_snapshot, 600 );
-	}
-
 	if ( ! is_array( $input ) ) {
 		return jbwp_get_settings();
 	}
@@ -1907,82 +1884,6 @@ function jbwp_render_settings() {
 
 				<!-- ══ TAB: MENU ══════════════════════════════════════════════ -->
 				<div data-tab-panel="menu" class="hidden" role="tabpanel" id="dwmcd-panel-menu" aria-labelledby="dwmcd-tab-menu">
-					<?php
-					// ── DIAGNOSTIC PANEL ──────────────────────────────────
-					// Visible only with ?debug_jbwp=1 in the URL. Shows the
-					// raw saved menu_order/menu_groups vs. what WP currently
-					// has in $menu, so we can see exactly where the menu
-					// organizer is breaking.
-					if ( isset( $_GET['debug_jbwp'] ) ) :
-						$dbg_live        = jbwp_current_menu_items();
-						$dbg_saved       = (array) ( $settings['menu_order'] ?? array() );
-						$dbg_grps        = (array) ( $settings['menu_groups'] ?? array() );
-						$dbg_saved_slugs = array_values( array_filter( array_column( $dbg_saved, 'slug' ) ) );
-						$dbg_live_slugs  = array_column( $dbg_live, 'slug' );
-						$dbg_overlap     = array_intersect( $dbg_saved_slugs, $dbg_live_slugs );
-					?>
-					<div class="dwmcd-card" style="background:#fffbeb;border-color:#fde68a">
-						<h2 style="color:#92400e">🔍 Diagnose menu organizer</h2>
-						<p class="dwmcd-muted">Tijdelijk debug-paneel. Verwijder <code>&amp;debug_jbwp=1</code> uit de URL om te verbergen.</p>
-						<table class="widefat" style="margin-top:10px">
-							<tbody>
-							<tr>
-								<th style="width:280px">menu_organizer_enabled</th>
-								<td><strong style="color:<?php echo ! empty( $settings['menu_organizer_enabled'] ) ? '#16a34a' : '#dc2626'; ?>">
-									<?php echo ! empty( $settings['menu_organizer_enabled'] ) ? '✅ AAN (1)' : '❌ UIT (0)'; ?>
-								</strong></td>
-							</tr>
-							<tr>
-								<th>Aantal opgeslagen items in menu_order</th>
-								<td><strong><?php echo count( $dbg_saved ); ?></strong></td>
-							</tr>
-							<tr>
-								<th>Aantal opgeslagen groepen</th>
-								<td><strong><?php echo count( $dbg_grps ); ?></strong></td>
-							</tr>
-							<tr>
-								<th>Aantal items in WP $menu (live)</th>
-								<td><strong><?php echo count( $dbg_live ); ?></strong></td>
-							</tr>
-							<tr>
-								<th>Slugs die in beide voorkomen (overlap)</th>
-								<td><strong><?php echo count( $dbg_overlap ); ?></strong> van <?php echo count( $dbg_saved_slugs ); ?> opgeslagen</td>
-							</tr>
-							</tbody>
-						</table>
-
-						<h3 style="margin-top:18px">Saved slugs (eerste 15)</h3>
-						<pre style="background:#fff;border:1px solid #e5e7eb;padding:10px;overflow:auto;max-height:200px"><?php
-							echo esc_html( wp_json_encode( array_slice( $dbg_saved_slugs, 0, 15 ), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) );
-						?></pre>
-
-						<h3>Live $menu slugs (eerste 15)</h3>
-						<pre style="background:#fff;border:1px solid #e5e7eb;padding:10px;overflow:auto;max-height:200px"><?php
-							echo esc_html( wp_json_encode( array_slice( $dbg_live_slugs, 0, 15 ), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) );
-						?></pre>
-
-						<h3>Eerste opgeslagen item (volledig)</h3>
-						<pre style="background:#fff;border:1px solid #e5e7eb;padding:10px;overflow:auto;max-height:200px"><?php
-							$first = $dbg_saved[0] ?? null;
-							echo esc_html( wp_json_encode( $first, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) );
-						?></pre>
-
-						<h3>Laatste sanitize-call (transient <code>jbwp_debug_last_save</code>)</h3>
-						<pre style="background:#fff;border:1px solid #e5e7eb;padding:10px;overflow:auto;max-height:300px"><?php
-							$dbg_last = get_transient( 'jbwp_debug_last_save' );
-							echo esc_html( $dbg_last ? wp_json_encode( $dbg_last, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) : '(nog niets opgeslagen sinds debug aan staat)' );
-						?></pre>
-
-						<p style="margin-top:14px"><strong>Wat te doen:</strong></p>
-						<ol style="margin:6px 0 0 20px;line-height:1.7">
-							<li>Open de browser console (F12 → tab Console).</li>
-							<li>Vink "Menu-organizer inschakelen" aan, sleep een item, klik onderaan op <strong>Instellingen opslaan</strong>.</li>
-							<li>Kijk in de console of je <code>[JBWP] Submitting menu_data:</code> ziet en wat erin staat.</li>
-							<li>Na het opslaan ververst de pagina — vervang in de URL <code>settings-updated=true</code> door <code>debug_jbwp=1</code> en kijk opnieuw in dit paneel.</li>
-						</ol>
-					</div>
-					<?php endif; ?>
-
 					<div class="dwmcd-card">
 						<div class="dwmcd-card-header-row">
 							<div>

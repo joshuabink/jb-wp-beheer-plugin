@@ -362,17 +362,6 @@ window.DWMCD = window.DWMCD || { typeHints: {}, typePlaceholders: {}, noTargetTy
   var addGroupBtn   = document.getElementById('dwmcd-add-group');
   var settingsForm  = document.getElementById('dwmcd-settings-form');
 
-  // Diagnostic boot log
-  try {
-    console.log('[JBWP] Menu organizer boot:', {
-      groupsArea:    !!groupsArea,
-      menuDataField: !!menuDataField,
-      settingsForm:  !!settingsForm,
-      chipCount:     groupsArea ? groupsArea.querySelectorAll('.dwmcd-menu-chip').length : 0,
-      groupCount:    groupsArea ? groupsArea.querySelectorAll('.dwmcd-menu-group').length : 0,
-    });
-  } catch (e) { /* ignore */ }
-
   var draggedChip  = null;
   var draggedGroup = null;
   var groupCounter = Date.now();
@@ -418,28 +407,28 @@ window.DWMCD = window.DWMCD || { typeHints: {}, typePlaceholders: {}, noTargetTy
     return { groups: groups, items: items };
   }
 
-  // Populate hidden field before submit
-  if (settingsForm && menuDataField) {
-    settingsForm.addEventListener('submit', function () {
-      var state = serializeMenuState();
-      menuDataField.value = JSON.stringify(state);
-      // Diagnostic: always log so we can see in the browser console what was
-      // submitted. Safe to leave on — it's a single debug line per save.
-      try {
-        console.log('[JBWP] Submitting menu_data:', {
-          itemsCount:  state.items.length,
-          groupsCount: state.groups.length,
-          firstItem:   state.items[0] || null,
-          rawJson:     menuDataField.value,
-        });
-      } catch (e) { /* ignore */ }
-    });
-  } else {
+  // Keep hidden menu_data field in sync with the UI *at all times*, not just
+  // on submit. This is defense in depth — if for any reason the submit
+  // listener doesn't fire (browser autofill, form.submit() called directly,
+  // another script hijacking submit), the value is already populated from
+  // the last user interaction.
+  function syncMenuData() {
+    if (!menuDataField) return;
     try {
-      console.warn('[JBWP] Menu organizer JS NOT bound. settingsForm=',
-        !!settingsForm, 'menuDataField=', !!menuDataField,
-        'groupsArea=', !!groupsArea);
+      menuDataField.value = JSON.stringify(serializeMenuState());
     } catch (e) { /* ignore */ }
+  }
+
+  // Populate immediately so a save without any interaction still ships the
+  // current (default) order — so at the very least "menu_order" in the DB
+  // gets populated and the filter can observe it.
+  if (groupsArea && menuDataField) {
+    syncMenuData();
+  }
+
+  // Also sync on every submit as a final safety net.
+  if (settingsForm && menuDataField) {
+    settingsForm.addEventListener('submit', syncMenuData);
   }
 
   // Chip visibility toggle
@@ -705,6 +694,28 @@ window.DWMCD = window.DWMCD || { typeHints: {}, typePlaceholders: {}, noTargetTy
       var form = menuReset.closest('form');
       if (form) form.submit();
     });
+  }
+
+  // Auto-sync the hidden menu_data field whenever the UI changes. A single
+  // MutationObserver catches: drag drops, group add/delete, chip reorder via
+  // arrow buttons, and any future DOM rearrangement. `input` catches label
+  // typing and group name edits. `click` catches visibility toggles. This
+  // guarantees menu_data is always fresh when the form submits, regardless
+  // of which code path the user took.
+  if (groupsArea && menuDataField) {
+    var syncTimer = null;
+    function scheduleSync() {
+      if (syncTimer) return;
+      syncTimer = setTimeout(function () {
+        syncTimer = null;
+        syncMenuData();
+      }, 50);
+    }
+    var mo = new MutationObserver(scheduleSync);
+    mo.observe(groupsArea, { childList: true, subtree: true });
+    groupsArea.addEventListener('input',  scheduleSync);
+    groupsArea.addEventListener('change', scheduleSync);
+    groupsArea.addEventListener('click',  scheduleSync);
   }
 
   // ── GA4: laden bij leeg transient ─────────────────────────────────────────

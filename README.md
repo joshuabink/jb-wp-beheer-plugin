@@ -5,7 +5,7 @@ Professioneel klantdashboard voor WordPress websites, beheerd door Joshua Bink.
 - **Plugin name (zichtbaar):** JB WP Beheer Plugin
 - **Plugin slug (folder + textdomain):** `jb-wp-beheer-plugin`
 - **Hoofdbestand:** `jb-wp-beheer-plugin.php`
-- **Huidige versie:** `4.0.1`
+- **Huidige versie:** `4.0.2`
 - **Update-bron:** GitHub Releases — [`joshuabink/jb-wp-beheer-plugin`](https://github.com/joshuabink/jb-wp-beheer-plugin)
 - **Branch:** `main`
 
