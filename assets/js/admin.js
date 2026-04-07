@@ -362,6 +362,17 @@ window.DWMCD = window.DWMCD || { typeHints: {}, typePlaceholders: {}, noTargetTy
   var addGroupBtn   = document.getElementById('dwmcd-add-group');
   var settingsForm  = document.getElementById('dwmcd-settings-form');
 
+  // Diagnostic boot log
+  try {
+    console.log('[JBWP] Menu organizer boot:', {
+      groupsArea:    !!groupsArea,
+      menuDataField: !!menuDataField,
+      settingsForm:  !!settingsForm,
+      chipCount:     groupsArea ? groupsArea.querySelectorAll('.dwmcd-menu-chip').length : 0,
+      groupCount:    groupsArea ? groupsArea.querySelectorAll('.dwmcd-menu-group').length : 0,
+    });
+  } catch (e) { /* ignore */ }
+
   var draggedChip  = null;
   var draggedGroup = null;
   var groupCounter = Date.now();
@@ -410,8 +421,25 @@ window.DWMCD = window.DWMCD || { typeHints: {}, typePlaceholders: {}, noTargetTy
   // Populate hidden field before submit
   if (settingsForm && menuDataField) {
     settingsForm.addEventListener('submit', function () {
-      menuDataField.value = JSON.stringify(serializeMenuState());
+      var state = serializeMenuState();
+      menuDataField.value = JSON.stringify(state);
+      // Diagnostic: always log so we can see in the browser console what was
+      // submitted. Safe to leave on — it's a single debug line per save.
+      try {
+        console.log('[JBWP] Submitting menu_data:', {
+          itemsCount:  state.items.length,
+          groupsCount: state.groups.length,
+          firstItem:   state.items[0] || null,
+          rawJson:     menuDataField.value,
+        });
+      } catch (e) { /* ignore */ }
     });
+  } else {
+    try {
+      console.warn('[JBWP] Menu organizer JS NOT bound. settingsForm=',
+        !!settingsForm, 'menuDataField=', !!menuDataField,
+        'groupsArea=', !!groupsArea);
+    } catch (e) { /* ignore */ }
   }
 
   // Chip visibility toggle
