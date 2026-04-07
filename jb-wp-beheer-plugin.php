@@ -3,7 +3,7 @@
  * Plugin Name:       JB WP Beheer Plugin
  * Plugin URI:        https://github.com/joshuabink/jb-wp-beheer-plugin
  * Description:       Professioneel klantdashboard voor WordPress websites.
- * Version:           4.0.0
+ * Version:           4.0.1
  * Author:            Joshua Bink
  * Author URI:        https://github.com/joshuabink
  * License:           GPL-2.0-or-later
@@ -33,7 +33,7 @@ if ( defined( 'JBWP_PLUGIN_VERSION' ) ) {
 // ── Plugin identity ──────────────────────────────────────────────────────────
 // Public-facing identifiers (slug, version, paths). Keep in sync with the
 // header above so the auto-updater and WP plugin screens use the same values.
-define( 'JBWP_PLUGIN_VERSION', '4.0.0' );
+define( 'JBWP_PLUGIN_VERSION', '4.0.1' );
 define( 'JBWP_PLUGIN_SLUG',    'jb-wp-beheer-plugin' );
 define( 'JBWP_PLUGIN_FILE',    __FILE__ );
 define( 'JBWP_PLUGIN_DIR',     plugin_dir_path( __FILE__ ) );
@@ -2453,26 +2453,51 @@ add_action( 'wp_head', function () {
 } );
 
 // ── Menu — volgorde ───────────────────────────────────────────────────────────
+//
+// Priority 9999: WooCommerce (and several other plugins) hook these same
+// filters at the default priority (10) and aggressively reorder the admin
+// menu — e.g. WC pins `woocommerce` and `edit.php?post_type=product` to
+// fixed positions via its own `menu_order` callback. By running absolutely
+// last we make sure JBWP's user-defined order is the final word and never
+// gets overwritten by other plugins.
 
-add_filter( 'custom_menu_order', function () {
+add_filter( 'custom_menu_order', function ( $enabled ) {
 	$s = jbwp_get_settings();
-	return ! empty( $s['menu_organizer_enabled'] ) && ! empty( $s['menu_order'] );
-} );
+	if ( ! empty( $s['menu_organizer_enabled'] ) && ! empty( $s['menu_order'] ) ) {
+		return true;
+	}
+	// Don't disable custom ordering for other plugins (e.g. WooCommerce) if
+	// the JBWP organizer itself is off.
+	return $enabled;
+}, 9999 );
 
 add_filter( 'menu_order', function ( $order ) {
 	$s = jbwp_get_settings();
 	if ( empty( $s['menu_organizer_enabled'] ) || empty( $s['menu_order'] ) ) {
 		return $order;
 	}
-	$new_order = array_column( (array) $s['menu_order'], 'slug' );
-	// Append new items not yet in config
-	foreach ( $order as $slug ) {
-		if ( ! in_array( $slug, $new_order, true ) ) {
-			$new_order[] = $slug;
+
+	// Start with the user-defined order, then append any items present in the
+	// live menu that the user hasn't placed yet (newly-installed plugins,
+	// WooCommerce sub-pages, separators, etc.) so nothing disappears.
+	$saved_slugs = array_values( array_filter( array_column( (array) $s['menu_order'], 'slug' ) ) );
+	$new_order   = array();
+	$seen        = array();
+	foreach ( $saved_slugs as $slug ) {
+		if ( isset( $seen[ $slug ] ) ) {
+			continue;
+		}
+		$seen[ $slug ] = true;
+		$new_order[]   = $slug;
+	}
+	foreach ( (array) $order as $slug ) {
+		if ( ! isset( $seen[ $slug ] ) ) {
+			$seen[ $slug ] = true;
+			$new_order[]   = $slug;
 		}
 	}
 	return $new_order;
-} );
+}, 9999 );
 
 // ── Menu — aangepaste labels ──────────────────────────────────────────────────
 
