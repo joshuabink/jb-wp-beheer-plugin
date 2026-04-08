@@ -1,4 +1,4 @@
-/* JB WP Beheer Plugin — v4.0.0 */
+/* JB WP Beheer Plugin — v4.0.3 */
 
 /* global DWMCD, wp */
 window.DWMCD = window.DWMCD || { typeHints: {}, typePlaceholders: {}, noTargetTypes: [], ajaxurl: '', nonce: '' };

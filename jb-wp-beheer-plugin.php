@@ -3,7 +3,7 @@
  * Plugin Name:       JB WP Beheer Plugin
  * Plugin URI:        https://github.com/joshuabink/jb-wp-beheer-plugin
  * Description:       Professioneel klantdashboard voor WordPress websites.
- * Version:           4.0.2
+ * Version:           4.0.3
  * Author:            Joshua Bink
  * Author URI:        https://github.com/joshuabink
  * License:           GPL-2.0-or-later
@@ -33,7 +33,7 @@ if ( defined( 'JBWP_PLUGIN_VERSION' ) ) {
 // ── Plugin identity ──────────────────────────────────────────────────────────
 // Public-facing identifiers (slug, version, paths). Keep in sync with the
 // header above so the auto-updater and WP plugin screens use the same values.
-define( 'JBWP_PLUGIN_VERSION', '4.0.2' );
+define( 'JBWP_PLUGIN_VERSION', '4.0.3' );
 define( 'JBWP_PLUGIN_SLUG',    'jb-wp-beheer-plugin' );
 define( 'JBWP_PLUGIN_FILE',    __FILE__ );
 define( 'JBWP_PLUGIN_DIR',     plugin_dir_path( __FILE__ ) );
@@ -2554,58 +2554,79 @@ add_action( 'admin_menu', function () {
 }, 998 );
 
 // ── Menu — groeplabels injecteren in admin sidebar via JS ─────────────────────
+//
+// We resolve each group's first slug to its EXACT <li> element id by reading
+// the live $menu global. WordPress writes $item[5] (the "hookname") into the
+// id attribute of the rendered <li>, sanitised with the same regex used here.
+// This avoids the previous fragile href-matching, which broke for plugins
+// where the parent menu slug doesn't appear literally in its href — the
+// canonical example being WooCommerce, whose slug is `woocommerce` but whose
+// landing href is `admin.php?page=wc-admin`.
 
 add_action( 'admin_head', function () {
+	global $menu;
 	$s = jbwp_get_settings();
 	if ( empty( $s['menu_organizer_enabled'] ) ) {
 		return;
 	}
 	$groups = (array) ( $s['menu_groups'] ?? array() );
 	$order  = (array) ( $s['menu_order']  ?? array() );
-	if ( empty( $groups ) && empty( $order ) ) {
+	if ( empty( $groups ) || empty( $order ) ) {
 		return;
 	}
 
-	// Build first-slug-per-group map for label injection
-	$group_first = array(); // group_id => first slug
-	$group_names = array(); // group_id => name
+	// group_id => display name
+	$group_names = array();
 	foreach ( $groups as $grp ) {
 		$gid = $grp['id'] ?? '';
 		if ( $gid ) {
 			$group_names[ $gid ] = $grp['name'] ?? '';
 		}
 	}
+
+	// group_id => first slug (in saved order)
+	$group_first_slug = array();
 	foreach ( $order as $item ) {
 		$slug = $item['slug'] ?? '';
 		$gid  = $item['group'] ?? '';
-		if ( $slug && $gid && ! isset( $group_first[ $gid ] ) ) {
-			$group_first[ $gid ] = $slug;
+		if ( $slug && $gid && ! isset( $group_first_slug[ $gid ] ) ) {
+			$group_first_slug[ $gid ] = $slug;
 		}
 	}
 
-	$inject = array();
-	foreach ( $group_first as $gid => $slug ) {
-		$inject[] = array(
-			'slug'  => $slug,
-			'label' => $group_names[ $gid ] ?? '',
-		);
+	if ( empty( $group_first_slug ) ) {
+		return;
 	}
 
-	if ( ! empty( $inject ) ) {
-		// Use admin_footer to inject the menu label script, because dwmcd-admin JS
-		// may not be enqueued on all pages (conditional loading).
-		add_action( 'admin_footer', function () use ( $inject ) {
-			echo '<script>window.DWMCDMenuInject=' . wp_json_encode( $inject ) . ';'
-				. '(function(){var m=document.getElementById("adminmenu");if(!m)return;'
-				. 'function f(s){var a=m.querySelectorAll("a.menu-top");for(var i=0;i<a.length;i++){'
-				. 'var h=(a[i].getAttribute("href")||"").replace(/^.*\\/wp-admin\\//,"");'
-				. 'if(s.indexOf(".php")!==-1&&h===s)return a[i].closest("li.menu-top");'
-				. 'if(h.indexOf("page="+s)!==-1)return a[i].closest("li.menu-top");}return null;}'
-				. 'window.DWMCDMenuInject.forEach(function(i){var li=f(i.slug);if(!li||!i.label)return;'
-				. 'var l=document.createElement("li");l.className="dwmcd-menu-cat-label";l.textContent=i.label;'
-				. 'li.parentNode.insertBefore(l,li);});})();</script>';
-		} );
+	// slug => element id (built from $menu[$i][5] hookname, same way WP does it)
+	$slug_to_id = array();
+	foreach ( (array) $menu as $m_item ) {
+		if ( empty( $m_item[2] ) || empty( $m_item[5] ) ) {
+			continue;
+		}
+		$slug_to_id[ $m_item[2] ] = preg_replace( '|[^a-zA-Z0-9_:.]|', '-', $m_item[5] );
 	}
+
+	$inject = array();
+	foreach ( $group_first_slug as $gid => $slug ) {
+		$label = $group_names[ $gid ] ?? '';
+		$id    = $slug_to_id[ $slug ] ?? '';
+		if ( $label && $id ) {
+			$inject[] = array( 'id' => $id, 'label' => $label );
+		}
+	}
+
+	if ( empty( $inject ) ) {
+		return;
+	}
+
+	// Use admin_footer to inject the labels — runs after the menu DOM exists.
+	add_action( 'admin_footer', function () use ( $inject ) {
+		echo '<script>(function(){var d=' . wp_json_encode( $inject ) . ';'
+			. 'd.forEach(function(i){var li=document.getElementById(i.id);if(!li||!i.label)return;'
+			. 'var l=document.createElement("li");l.className="dwmcd-menu-cat-label";l.textContent=i.label;'
+			. 'li.parentNode.insertBefore(l,li);});})();</script>';
+	} );
 } );
 
 // ── Admin bar — site-icoon & WP logo ─────────────────────────────────────────
