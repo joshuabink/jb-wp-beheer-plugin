@@ -1,4 +1,4 @@
-/* JB WP Beheer Plugin — v4.0.3 */
+/* JB WP Beheer Plugin — v4.0.4 */
 
 /* ── CSS variabelen ───────────────────────────────────────────────────────── */
 :root {
@@ -132,6 +132,22 @@ body.wp-admin { background: var(--dwmcd-bg); color: var(--dwmcd-text); }
 #adminmenu li.menu-top > a.menu-top { padding: 9px 8px 9px 4px !important; line-height: 1.4 !important; }
 #adminmenu .wp-menu-image { min-height: 0 !important; padding: 0 !important; }
 #adminmenu div.wp-menu-image:before { padding: 0 6px 0 8px !important; width: 32px !important; line-height: 1 !important; }
+/* Plugin-iconen die als <img>/<svg> worden geleverd (WooCommerce, Producten,
+   Statistieken, Betalingen, Marketing, …) krijgen normaal WP's defaults
+   geserveerd, die uitgaan van een 36×34px wrapper met 7px padding. Onze
+   wrapper hierboven is platgeslagen naar padding:0, dus we moeten image-
+   iconen expliciet in dezelfde 32px-box centreren als de dashicon ::before,
+   anders zakken ze scheef ten opzichte van het tekst-baseline. */
+#adminmenu .wp-menu-image img,
+#adminmenu .wp-menu-image svg {
+  padding: 0 6px 0 8px !important;
+  width: 32px !important;
+  height: 20px !important;
+  box-sizing: content-box !important;
+  margin: 0 !important;
+  vertical-align: middle !important;
+  opacity: 1 !important;
+}
 #adminmenu .wp-menu-name { padding: 0 6px 0 0 !important; font-size: 13.5px !important; color: var(--dwmcd-sidebar-text) !important; }
 #adminmenu a,
 #adminmenu .wp-submenu a,
