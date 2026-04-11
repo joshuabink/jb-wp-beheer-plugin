@@ -3,7 +3,7 @@
  * Plugin Name:       JB WP Beheer Plugin
  * Plugin URI:        https://github.com/joshuabink/jb-wp-beheer-plugin
  * Description:       Professioneel klantdashboard voor WordPress websites.
- * Version:           4.0.7
+ * Version:           4.0.8
  * Author:            Joshua Bink
  * Author URI:        https://github.com/joshuabink
  * License:           GPL-2.0-or-later
@@ -33,7 +33,7 @@ if ( defined( 'JBWP_PLUGIN_VERSION' ) ) {
 // ── Plugin identity ──────────────────────────────────────────────────────────
 // Public-facing identifiers (slug, version, paths). Keep in sync with the
 // header above so the auto-updater and WP plugin screens use the same values.
-define( 'JBWP_PLUGIN_VERSION', '4.0.7' );
+define( 'JBWP_PLUGIN_VERSION', '4.0.8' );
 define( 'JBWP_PLUGIN_SLUG',    'jb-wp-beheer-plugin' );
 define( 'JBWP_PLUGIN_FILE',    __FILE__ );
 define( 'JBWP_PLUGIN_DIR',     plugin_dir_path( __FILE__ ) );
@@ -1378,22 +1378,8 @@ function jbwp_render_dashboard() {
 		echo '</section>';
 	}
 
-	if ( ! empty( $settings['ga4_enabled'] ) && ! empty( $settings['ga4_property_id'] ) ) {
-		echo '<section class="dwmcd-section-block">';
-		echo '<h2>Website statistieken</h2>';
-		echo '<div class="dwmcd-ga4-card">';
-		$cached = get_transient( 'dwmcd_ga4_data' );
-		if ( false !== $cached ) {
-			echo jbwp_ga4_render_widget( $cached );
-		} else {
-			echo '<div class="dwmcd-ga4-loading" id="dwmcd-ga4-widget">';
-			echo '<span class="spinner is-active" style="float:none;margin:0"></span>';
-			echo '<span>Analytics laden&hellip;</span>';
-			echo '</div>';
-		}
-		echo '</div>';
-		echo '</section>';
-	}
+	// GA4 dashboard widget — tijdelijk uitgeschakeld (Coming Soon)
+	// if ( ! empty( $settings['ga4_enabled'] ) && ! empty( $settings['ga4_property_id'] ) ) { ... }
 
 	// Webshop widgets — alleen tonen als is_webshop aan staat én WooCommerce actief is
 	if ( jbwp_webshop_enabled() ) {
@@ -1974,68 +1960,10 @@ function jbwp_render_settings() {
 
 				<!-- ══ TAB: ANALYTICS ════════════════════════════════════════ -->
 				<div data-tab-panel="analytics" class="hidden" role="tabpanel" id="dwmcd-panel-analytics" aria-labelledby="dwmcd-tab-analytics">
-					<div class="dwmcd-card">
-						<h2>Google Analytics (GA4)</h2>
-						<p class="dwmcd-muted" style="margin-bottom:16px">Koppel Google Analytics om bezoekersstatistieken direct op het klantdashboard te tonen — net als Google Site Kit.</p>
-						<div class="dwmcd-switches" style="margin-bottom:16px">
-							<label><input type="checkbox" name="dwmcd_settings[ga4_enabled]" value="1" <?php checked( ! empty( $settings['ga4_enabled'] ) ); ?>> Analytics widget inschakelen</label>
-						</div>
-						<div class="dwmcd-grid two">
-							<div class="dwmcd-field">
-								<label>GA4 Property ID</label>
-								<input type="text" name="dwmcd_settings[ga4_property_id]"
-									value="<?php echo esc_attr( $settings['ga4_property_id'] ); ?>"
-									placeholder="bijv. 123456789">
-								<small class="dwmcd-help">Terug te vinden in Google Analytics &rarr; Beheer &rarr; Property-instellingen.</small>
-							</div>
-						</div>
-						<div class="dwmcd-field" style="margin-top:14px">
-							<label>Service Account JSON</label>
-							<?php if ( defined( 'DWMCD_GA4_JSON' ) && '' !== DWMCD_GA4_JSON ) : ?>
-								<div class="dwmcd-info-box" style="background:#f0fdf4;border-color:#bbf7d0">
-									<span class="dashicons dashicons-yes-alt" style="color:#16a34a"></span>
-									<p>Service account is veilig geconfigureerd via <code>wp-config.php</code> (<code>DWMCD_GA4_JSON</code>). Dit veld is uitgeschakeld.</p>
-								</div>
-								<input type="hidden" name="dwmcd_settings[ga4_service_account]" value="">
-							<?php else : ?>
-								<textarea name="dwmcd_settings[ga4_service_account]" rows="6"
-									placeholder='Plak hier de inhoud van uw service account JSON-sleutelbestand...'
-									style="font-family:monospace;font-size:12px"
-									aria-describedby="dwmcd-ga4-json-help"><?php echo esc_textarea( $settings['ga4_service_account'] ); ?></textarea>
-								<small class="dwmcd-help" id="dwmcd-ga4-json-help">Maak een service account aan in Google Cloud Console, geef het <strong>Viewer</strong>-toegang tot uw GA4-property en download het JSON-sleutelbestand.</small>
-								<div class="dwmcd-info-box" style="margin-top:10px;background:#fffbeb;border-color:#fde68a">
-									<span class="dashicons dashicons-shield" style="color:#d97706"></span>
-									<p>Voor betere beveiliging: definieer <code>DWMCD_GA4_JSON</code> in <code>wp-config.php</code> in plaats van de JSON hier te plakken.</p>
-								</div>
-							<?php endif; ?>
-						</div>
-						<div style="margin-top:14px;display:flex;align-items:center;gap:12px">
-							<button type="button" class="button button-secondary" id="dwmcd-ga4-test">
-								<span class="dashicons dashicons-update"></span> Verbinding testen
-							</button>
-							<button type="button" class="button button-secondary" id="dwmcd-ga4-refresh">
-								<span class="dashicons dashicons-database-remove"></span> Cache wissen
-							</button>
-							<span id="dwmcd-ga4-status" class="dwmcd-ga4-status"></span>
-						</div>
-						<?php if ( ! function_exists( 'openssl_sign' ) ) : ?>
-						<div class="dwmcd-info-box" style="margin-top:14px;background:#fff8f0;border-color:#fde68a">
-							<span class="dashicons dashicons-warning" style="color:#d97706"></span>
-							<p>De <code>openssl</code> PHP-extensie is niet beschikbaar op deze server. GA4-authenticatie vereist openssl. Neem contact op met uw hostingprovider.</p>
-						</div>
-						<?php endif; ?>
-					</div>
-
-					<div class="dwmcd-card">
-						<h2>Hoe in te stellen</h2>
-						<ol style="margin:0;padding-left:20px;line-height:2;color:var(--dwmcd-muted);font-size:13.5px">
-							<li>Ga naar <strong>console.cloud.google.com</strong> en selecteer uw project (of maak een nieuw aan).</li>
-							<li>Activeer de <strong>Google Analytics Data API</strong> via &ldquo;API's en services&rdquo;.</li>
-							<li>Ga naar &ldquo;Referenties&rdquo; en maak een <strong>Service account</strong> aan.</li>
-							<li>Download het <strong>JSON-sleutelbestand</strong> en plak de inhoud hierboven.</li>
-							<li>Kopieer het <strong>e-mailadres</strong> van het service account (eindigt op <code>@...gserviceaccount.com</code>).</li>
-							<li>Ga naar <strong>Google Analytics</strong> &rarr; Beheer &rarr; Property &rarr; Toegangsbeheer en voeg het e-mailadres toe als <strong>Viewer</strong>.</li>
-						</ol>
+					<div class="dwmcd-card" style="text-align:center;padding:48px 24px">
+						<span class="dashicons dashicons-chart-area" style="font-size:48px;width:48px;height:48px;color:var(--dwmcd-accent);opacity:.6;margin-bottom:16px"></span>
+						<h2 style="margin:0 0 8px">Analytics — Coming Soon</h2>
+						<p class="dwmcd-muted" style="max-width:460px;margin:0 auto;line-height:1.6">De Google Analytics (GA4) integratie wordt momenteel verbeterd en is tijdelijk uitgeschakeld. In een toekomstige versie kun je hier bezoekersstatistieken direct op het dashboard bekijken.</p>
 					</div>
 				</div><!-- /analytics panel -->
 
