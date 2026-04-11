@@ -1,4 +1,4 @@
-/* JB WP Beheer Plugin — v4.0.4 */
+/* JB WP Beheer Plugin — v4.0.5 */
 
 /* ── CSS variabelen ───────────────────────────────────────────────────────── */
 :root {
@@ -129,26 +129,51 @@ body.wp-admin { background: var(--dwmcd-bg); color: var(--dwmcd-text); }
 #adminmenu li.menu-top { margin: 2px 10px !important; }
 #adminmenu li.separator { margin: 8px 18px !important; height: 1px; background: var(--dwmcd-border) !important; }
 #adminmenu .menu-top { border-radius: 10px !important; transition: background .15s ease !important; min-height: 0 !important; }
-#adminmenu li.menu-top > a.menu-top { padding: 9px 8px 9px 4px !important; line-height: 1.4 !important; }
-#adminmenu .wp-menu-image { min-height: 0 !important; padding: 0 !important; }
-#adminmenu div.wp-menu-image:before { padding: 0 6px 0 8px !important; width: 32px !important; line-height: 1 !important; }
-/* Plugin-iconen die als <img>/<svg> worden geleverd (WooCommerce, Producten,
-   Statistieken, Betalingen, Marketing, …) krijgen normaal WP's defaults
-   geserveerd, die uitgaan van een 36×34px wrapper met 7px padding. Onze
-   wrapper hierboven is platgeslagen naar padding:0, dus we moeten image-
-   iconen expliciet in dezelfde 32px-box centreren als de dashicon ::before,
-   anders zakken ze scheef ten opzichte van het tekst-baseline. */
+/* Menu-link als flex-container: forceert verticale centrering van icon + tekst
+   ongeacht icontype (dashicon ::before, <img>, <svg>). Vervangt WP's float-
+   gebaseerde layout die niet betrouwbaar centreert na onze padding-reset. */
+#adminmenu li.menu-top > a.menu-top {
+  display: flex !important;
+  align-items: center !important;
+  padding: 9px 8px 9px 4px !important;
+  line-height: 1.4 !important;
+}
+/* Icon-wrapper: geen float meer nodig dankzij flex op parent */
+#adminmenu .wp-menu-image {
+  min-height: 0 !important;
+  padding: 0 !important;
+  float: none !important;
+  flex-shrink: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 36px !important;
+  height: auto !important;
+}
+/* Dashicon-glyph */
+#adminmenu div.wp-menu-image:before {
+  padding: 0 !important;
+  width: auto !important;
+  line-height: 1 !important;
+  font-size: 20px !important;
+}
+/* Plugin img/svg icons (WooCommerce, Producten, Statistieken, enz.) */
 #adminmenu .wp-menu-image img,
 #adminmenu .wp-menu-image svg {
-  padding: 0 6px 0 8px !important;
-  width: 32px !important;
+  width: 20px !important;
   height: 20px !important;
-  box-sizing: content-box !important;
+  padding: 0 !important;
   margin: 0 !important;
-  vertical-align: middle !important;
+  display: block !important;
+  object-fit: contain !important;
   opacity: 1 !important;
 }
-#adminmenu .wp-menu-name { padding: 0 6px 0 0 !important; font-size: 13.5px !important; color: var(--dwmcd-sidebar-text) !important; }
+/* Tekst-label */
+#adminmenu .wp-menu-name {
+  padding: 0 6px 0 0 !important;
+  font-size: 13.5px !important;
+  color: var(--dwmcd-sidebar-text) !important;
+}
 #adminmenu a,
 #adminmenu .wp-submenu a,
 #adminmenu div.wp-menu-image:before { color: var(--dwmcd-sidebar-text) !important; }
@@ -194,11 +219,10 @@ body.wp-admin { background: var(--dwmcd-bg); color: var(--dwmcd-text); }
   outline: none !important;
 }
 
-/* Forceer ALLE submenus inline (geen flyout).
-   Geen body-class prefix — auto-fold staat standaard aan in WP. */
-#adminmenu .wp-submenu,
-#adminmenu li.opensub > .wp-submenu,
-#adminmenu li:hover > .wp-submenu {
+/* ── Submenu: basisreset ──────────────────────────────────────────────────── */
+/* Verwijder WP's standaard flyout-positionering en styling zodat we alles
+   zelf kunnen regelen. */
+#adminmenu .wp-submenu {
   position: relative !important;
   top: auto !important;
   left: auto !important;
@@ -219,7 +243,7 @@ body.wp-admin { background: var(--dwmcd-bg); color: var(--dwmcd-text); }
 #adminmenu .wp-submenu::before,
 #adminmenu .wp-submenu::after { display: none !important; }
 
-/* Open/actief: toon inline */
+/* ── Open/actief: submenu inline tonen ─────────────────────────────────── */
 #adminmenu li.wp-menu-open > .wp-submenu,
 #adminmenu li.wp-has-current-submenu > .wp-submenu {
   display: block !important;
@@ -229,12 +253,30 @@ body.wp-admin { background: var(--dwmcd-bg); color: var(--dwmcd-text); }
   border-radius: 12px !important;
 }
 
-/* Gesloten items: NOOIT submenu tonen bij hover */
+/* ── Gesloten items: verborgen, maar flyout bij hover ──────────────────── */
 #adminmenu li:not(.wp-menu-open):not(.wp-has-current-submenu) > .wp-submenu {
   display: none !important;
 }
+#adminmenu li:not(.wp-menu-open):not(.wp-has-current-submenu):hover > .wp-submenu {
+  display: block !important;
+  position: absolute !important;
+  left: 100% !important;
+  top: 0 !important;
+  right: auto !important;
+  float: none !important;
+  min-width: 180px !important;
+  width: auto !important;
+  padding: 8px 0 !important;
+  margin: 0 !important;
+  background: var(--dwmcd-sidebar-bg) !important;
+  border: 1px solid var(--dwmcd-border) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 24px rgba(20,32,55,.12) !important;
+  white-space: nowrap !important;
+  z-index: 9999 !important;
+}
 
-/* Uitzondering: gevouwen sidebar — dan WEL flyout */
+/* ── Gevouwen sidebar: altijd flyout ─────────────────────────────────── */
 body.folded #adminmenu .wp-submenu,
 body.folded #adminmenu li.opensub > .wp-submenu {
   position: absolute !important;
@@ -243,12 +285,13 @@ body.folded #adminmenu li.opensub > .wp-submenu {
 }
 body.folded #adminmenu li:hover > .wp-submenu {
   display: block !important;
-  padding: 6px 0 8px !important;
+  padding: 8px 0 !important;
   margin: 0 !important;
   min-width: 180px !important;
   width: auto !important;
   border-radius: 12px !important;
-  box-shadow: 0 8px 24px rgba(20,32,55,.10) !important;
+  border: 1px solid var(--dwmcd-border) !important;
+  box-shadow: 0 8px 24px rgba(20,32,55,.12) !important;
 }
 /* Smalle schermen waar auto-fold de sidebar klapt */
 @media (max-width: 782px) {
@@ -260,12 +303,13 @@ body.folded #adminmenu li:hover > .wp-submenu {
   }
   body.auto-fold #adminmenu li:hover > .wp-submenu {
     display: block !important;
-    padding: 6px 0 8px !important;
+    padding: 8px 0 !important;
     margin: 0 !important;
     min-width: 180px !important;
     width: auto !important;
     border-radius: 12px !important;
-    box-shadow: 0 8px 24px rgba(20,32,55,.10) !important;
+    border: 1px solid var(--dwmcd-border) !important;
+    box-shadow: 0 8px 24px rgba(20,32,55,.12) !important;
   }
 }
 

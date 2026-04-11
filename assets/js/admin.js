@@ -1,4 +1,4 @@
-/* JB WP Beheer Plugin — v4.0.4 */
+/* JB WP Beheer Plugin — v4.0.5 */
 
 /* global DWMCD, wp */
 window.DWMCD = window.DWMCD || { typeHints: {}, typePlaceholders: {}, noTargetTypes: [], ajaxurl: '', nonce: '' };
@@ -761,5 +761,36 @@ window.DWMCD = window.DWMCD || { typeHints: {}, typePlaceholders: {}, noTargetTy
 
   if (ga4TestBtn)    ga4TestBtn.addEventListener('click', function () { ga4Ajax('dwmcd_ga4_test', 'Testen'); });
   if (ga4RefreshBtn) ga4RefreshBtn.addEventListener('click', function () { ga4Ajax('dwmcd_ga4_refresh', 'Cache wissen'); });
+
+  // ── Reset instellingen ──────────────────────────────────────────────────
+  var resetBtn = document.getElementById('dwmcd-reset-settings');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', function () {
+      if (!confirm('Weet je zeker dat je ALLE plugin-instellingen wilt terugzetten naar de standaardwaarden?\n\nDit kan niet ongedaan worden gemaakt.')) {
+        return;
+      }
+      resetBtn.disabled = true;
+      resetBtn.textContent = 'Bezig met resetten…';
+      var fd = new FormData();
+      fd.append('action', 'dwmcd_reset_settings');
+      fd.append('nonce', DWMCD.nonce);
+      fetch(DWMCD.ajaxurl, { method: 'POST', body: fd })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data.success) {
+            window.location.reload();
+          } else {
+            alert(data.data && data.data.message ? data.data.message : 'Reset mislukt.');
+            resetBtn.disabled = false;
+            resetBtn.textContent = 'Reset alle instellingen';
+          }
+        })
+        .catch(function () {
+          alert('Verzoek mislukt. Probeer het opnieuw.');
+          resetBtn.disabled = false;
+          resetBtn.textContent = 'Reset alle instellingen';
+        });
+    });
+  }
 
 })();

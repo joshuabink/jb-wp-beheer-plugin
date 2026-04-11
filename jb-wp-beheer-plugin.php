@@ -3,7 +3,7 @@
  * Plugin Name:       JB WP Beheer Plugin
  * Plugin URI:        https://github.com/joshuabink/jb-wp-beheer-plugin
  * Description:       Professioneel klantdashboard voor WordPress websites.
- * Version:           4.0.4
+ * Version:           4.0.5
  * Author:            Joshua Bink
  * Author URI:        https://github.com/joshuabink
  * License:           GPL-2.0-or-later
@@ -33,7 +33,7 @@ if ( defined( 'JBWP_PLUGIN_VERSION' ) ) {
 // ── Plugin identity ──────────────────────────────────────────────────────────
 // Public-facing identifiers (slug, version, paths). Keep in sync with the
 // header above so the auto-updater and WP plugin screens use the same values.
-define( 'JBWP_PLUGIN_VERSION', '4.0.4' );
+define( 'JBWP_PLUGIN_VERSION', '4.0.5' );
 define( 'JBWP_PLUGIN_SLUG',    'jb-wp-beheer-plugin' );
 define( 'JBWP_PLUGIN_FILE',    __FILE__ );
 define( 'JBWP_PLUGIN_DIR',     plugin_dir_path( __FILE__ ) );
@@ -2191,7 +2191,10 @@ function jbwp_render_settings() {
 
 				</div><!-- /access panel -->
 
-				<div class="dwmcd-submit"><?php submit_button( 'Instellingen opslaan', 'primary', 'submit', false ); ?></div>
+				<div class="dwmcd-submit">
+					<?php submit_button( 'Instellingen opslaan', 'primary', 'submit', false ); ?>
+					<button type="button" id="dwmcd-reset-settings" class="button button-secondary" style="margin-left:12px;color:#d63638;border-color:#d63638;">Reset alle instellingen</button>
+				</div>
 			</form>
 		</div>
 	</div>
@@ -2756,6 +2759,17 @@ add_action( 'wp_ajax_dwmcd_ga4_load', function () {
 	check_ajax_referer( 'dwmcd_nonce', 'nonce' );
 	$data = jbwp_ga4_get_data();
 	wp_send_json_success( array( 'html' => jbwp_ga4_render_widget( $data ) ) );
+} );
+
+// ── AJAX: Reset instellingen ────────────────────────────────────────────────
+
+add_action( 'wp_ajax_dwmcd_reset_settings', function () {
+	check_ajax_referer( 'dwmcd_nonce', 'nonce' );
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_send_json_error( array( 'message' => 'Geen toegang.' ) );
+	}
+	update_option( DWMCD_OPTION, jbwp_defaults() );
+	wp_send_json_success( array( 'message' => 'Alle instellingen zijn teruggezet naar de standaardwaarden.' ) );
 } );
 
 // ── Roadmap / Coming Soon page ──────────────────────────────────────────────
