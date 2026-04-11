@@ -1,4 +1,4 @@
-/* JB WP Beheer Plugin — v4.0.5 */
+/* JB WP Beheer Plugin — v4.0.6 */
 
 /* ── CSS variabelen ───────────────────────────────────────────────────────── */
 :root {
@@ -138,9 +138,11 @@ body.wp-admin { background: var(--dwmcd-bg); color: var(--dwmcd-text); }
   padding: 9px 8px 9px 4px !important;
   line-height: 1.4 !important;
 }
-/* Icon-wrapper: geen float meer nodig dankzij flex op parent */
+/* Icon-wrapper: geen float meer nodig dankzij flex op parent.
+   min-height: 20px voorkomt dat plugins die hun icon via background-image
+   op deze div zetten (Elementor, Yoast, etc.) onzichtbaar worden doordat
+   een lege flex-container naar 0px hoogte inklapt. */
 #adminmenu .wp-menu-image {
-  min-height: 0 !important;
   padding: 0 !important;
   float: none !important;
   flex-shrink: 0 !important;
@@ -148,7 +150,10 @@ body.wp-admin { background: var(--dwmcd-bg); color: var(--dwmcd-text); }
   align-items: center !important;
   justify-content: center !important;
   width: 36px !important;
-  height: auto !important;
+  min-height: 20px !important;
+  background-size: 20px 20px !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
 }
 /* Dashicon-glyph */
 #adminmenu div.wp-menu-image:before {
