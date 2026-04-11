@@ -3,7 +3,7 @@
  * Plugin Name:       JB WP Beheer Plugin
  * Plugin URI:        https://github.com/joshuabink/jb-wp-beheer-plugin
  * Description:       Professioneel klantdashboard voor WordPress websites.
- * Version:           4.0.8
+ * Version:           4.1.0
  * Author:            Joshua Bink
  * Author URI:        https://github.com/joshuabink
  * License:           GPL-2.0-or-later
@@ -33,7 +33,7 @@ if ( defined( 'JBWP_PLUGIN_VERSION' ) ) {
 // ── Plugin identity ──────────────────────────────────────────────────────────
 // Public-facing identifiers (slug, version, paths). Keep in sync with the
 // header above so the auto-updater and WP plugin screens use the same values.
-define( 'JBWP_PLUGIN_VERSION', '4.0.8' );
+define( 'JBWP_PLUGIN_VERSION', '4.1.0' );
 define( 'JBWP_PLUGIN_SLUG',    'jb-wp-beheer-plugin' );
 define( 'JBWP_PLUGIN_FILE',    __FILE__ );
 define( 'JBWP_PLUGIN_DIR',     plugin_dir_path( __FILE__ ) );
@@ -101,6 +101,10 @@ function jbwp_defaults() {
 		'support_text'           => 'Neem contact op voor support of wijzigingen aan uw website.',
 		'support_button'         => 'Contact opnemen',
 		'support_url'            => '',
+		// Media & Gebruikers modules
+		'media_categories_enabled'  => 0,
+		'media_replacement_enabled' => 0,
+		'local_avatar_enabled'      => 0,
 		// Menu verbergen (niet-beheerders)
 		'hide_comments'          => 1,
 		'hide_tools'             => 1,
@@ -1194,6 +1198,10 @@ function jbwp_sanitize_settings( $input ) {
 	$out['support_text']   = sanitize_textarea_field( $input['support_text'] ?? $d['support_text'] );
 	$out['support_button'] = sanitize_text_field( $input['support_button'] ?? $d['support_button'] );
 	$out['support_url']    = esc_url_raw( $input['support_url'] ?? '' );
+	// Media & Gebruikers modules
+	$out['media_categories_enabled']  = empty( $input['media_categories_enabled'] )  ? 0 : 1;
+	$out['media_replacement_enabled'] = empty( $input['media_replacement_enabled'] ) ? 0 : 1;
+	$out['local_avatar_enabled']      = empty( $input['local_avatar_enabled'] )      ? 0 : 1;
 	// Menu verbergen
 	$out['hide_comments'] = empty( $input['hide_comments'] ) ? 0 : 1;
 	$out['hide_tools']    = empty( $input['hide_tools'] )    ? 0 : 1;
@@ -1668,6 +1676,7 @@ function jbwp_render_settings() {
 				<button type="button" class="dwmcd-tab-btn" data-tab="menu" role="tab" aria-selected="false" aria-controls="dwmcd-panel-menu" id="dwmcd-tab-menu"><span class="dashicons dashicons-menu"></span> Menu</button>
 				<button type="button" class="dwmcd-tab-btn" data-tab="analytics" role="tab" aria-selected="false" aria-controls="dwmcd-panel-analytics" id="dwmcd-tab-analytics"><span class="dashicons dashicons-chart-area"></span> Analytics</button>
 				<button type="button" class="dwmcd-tab-btn" data-tab="webshop" role="tab" aria-selected="false" aria-controls="dwmcd-panel-webshop" id="dwmcd-tab-webshop"><span class="dashicons dashicons-cart"></span> Webshop</button>
+				<button type="button" class="dwmcd-tab-btn" data-tab="media" role="tab" aria-selected="false" aria-controls="dwmcd-panel-media" id="dwmcd-tab-media"><span class="dashicons dashicons-format-gallery"></span> Media</button>
 				<button type="button" class="dwmcd-tab-btn" data-tab="settings" role="tab" aria-selected="false" aria-controls="dwmcd-panel-settings" id="dwmcd-tab-settings"><span class="dashicons dashicons-admin-settings"></span> Instellingen</button>
 				<button type="button" class="dwmcd-tab-btn" data-tab="access" role="tab" aria-selected="false" aria-controls="dwmcd-panel-access" id="dwmcd-tab-access"><span class="dashicons dashicons-admin-users"></span> Toegang</button>
 			</div>
@@ -2040,6 +2049,35 @@ function jbwp_render_settings() {
 				</div><!-- /webshop panel -->
 
 				<!-- ══ TAB: INSTELLINGEN ════════════════════════════════════ -->
+				<!-- ══ TAB: MEDIA & GEBRUIKERS ═══════════════════════════════ -->
+				<div data-tab-panel="media" class="hidden" role="tabpanel" id="dwmcd-panel-media" aria-labelledby="dwmcd-tab-media">
+
+					<div class="dwmcd-card">
+						<h2>Media Categories</h2>
+						<p class="dwmcd-muted" style="margin-bottom:14px">Voeg categorieën toe aan de mediabibliotheek voor betere organisatie. Categoriseer bestanden via drag-and-drop en filter op categorie bij het invoegen van media.</p>
+						<div class="dwmcd-switches">
+							<label><input type="checkbox" name="dwmcd_settings[media_categories_enabled]" value="1" <?php checked( ! empty( $settings['media_categories_enabled'] ) ); ?>> Media Categories inschakelen</label>
+						</div>
+					</div>
+
+					<div class="dwmcd-card">
+						<h2>Media Replacement</h2>
+						<p class="dwmcd-muted" style="margin-bottom:14px">Vervang eenvoudig elk mediabestand met een nieuw bestand. Het behoudt de bestaande media-ID, publicatiedatum en alle koppelingen — zo breken er geen links.</p>
+						<div class="dwmcd-switches">
+							<label><input type="checkbox" name="dwmcd_settings[media_replacement_enabled]" value="1" <?php checked( ! empty( $settings['media_replacement_enabled'] ) ); ?>> Media Replacement inschakelen</label>
+						</div>
+					</div>
+
+					<div class="dwmcd-card">
+						<h2>Local User Avatar</h2>
+						<p class="dwmcd-muted" style="margin-bottom:14px">Gebruik elke afbeelding uit de WordPress Mediabibliotheek als gebruikersavatar — geen externe diensten zoals Gravatar nodig.</p>
+						<div class="dwmcd-switches">
+							<label><input type="checkbox" name="dwmcd_settings[local_avatar_enabled]" value="1" <?php checked( ! empty( $settings['local_avatar_enabled'] ) ); ?>> Local User Avatar inschakelen</label>
+						</div>
+					</div>
+
+				</div><!-- /media panel -->
+
 				<div data-tab-panel="settings" class="hidden" role="tabpanel" id="dwmcd-panel-settings" aria-labelledby="dwmcd-tab-settings">
 
 					<div class="dwmcd-card">
@@ -2700,6 +2738,518 @@ add_action( 'wp_ajax_dwmcd_reset_settings', function () {
 	wp_send_json_success( array( 'message' => 'Alle instellingen zijn teruggezet naar de standaardwaarden.' ) );
 } );
 
+// ══════════════════════════════════════════════════════════════════════════════
+// ── MODULE: Media Categories ────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// Registers a flat (non-hierarchical) taxonomy `media_category` on the
+// `attachment` post type. Adds a dropdown filter to the media library list
+// view, and injects a filter into the media modal (grid view) so users can
+// filter by category when inserting media into content.
+
+add_action( 'init', function () {
+	$s = jbwp_get_settings();
+	if ( empty( $s['media_categories_enabled'] ) ) {
+		return;
+	}
+	register_taxonomy( 'media_category', 'attachment', array(
+		'labels' => array(
+			'name'              => 'Mediacategorieën',
+			'singular_name'     => 'Mediacategorie',
+			'search_items'      => 'Categorieën zoeken',
+			'all_items'         => 'Alle categorieën',
+			'edit_item'         => 'Categorie bewerken',
+			'update_item'       => 'Categorie bijwerken',
+			'add_new_item'      => 'Nieuwe categorie toevoegen',
+			'new_item_name'     => 'Nieuwe categorienaam',
+			'menu_name'         => 'Categorieën',
+		),
+		'hierarchical'      => true,
+		'show_ui'           => true,
+		'show_admin_column' => true,
+		'show_in_rest'      => true,
+		'query_var'         => true,
+		'rewrite'           => false,
+		'update_count_callback' => '_update_generic_term_count',
+	) );
+} );
+
+// Dropdown filter in media list view
+add_action( 'restrict_manage_posts', function () {
+	global $typenow;
+	if ( 'attachment' !== $typenow ) {
+		return;
+	}
+	$s = jbwp_get_settings();
+	if ( empty( $s['media_categories_enabled'] ) ) {
+		return;
+	}
+	if ( ! taxonomy_exists( 'media_category' ) ) {
+		return;
+	}
+	$terms = get_terms( array( 'taxonomy' => 'media_category', 'hide_empty' => false ) );
+	if ( empty( $terms ) || is_wp_error( $terms ) ) {
+		return;
+	}
+	$selected = isset( $_GET['media_category'] ) ? sanitize_key( $_GET['media_category'] ) : '';
+	echo '<select name="media_category" id="filter-by-media-category">';
+	echo '<option value="">Alle categorieën</option>';
+	foreach ( $terms as $term ) {
+		printf(
+			'<option value="%s"%s>%s (%d)</option>',
+			esc_attr( $term->slug ),
+			selected( $selected, $term->slug, false ),
+			esc_html( $term->name ),
+			(int) $term->count
+		);
+	}
+	echo '</select>';
+} );
+
+// Filter query in media list view
+add_action( 'pre_get_posts', function ( $query ) {
+	global $pagenow;
+	if ( 'upload.php' !== $pagenow || ! $query->is_main_query() ) {
+		return;
+	}
+	$cat = isset( $_GET['media_category'] ) ? sanitize_key( $_GET['media_category'] ) : '';
+	if ( '' !== $cat ) {
+		$query->set( 'tax_query', array(
+			array(
+				'taxonomy' => 'media_category',
+				'field'    => 'slug',
+				'terms'    => $cat,
+			),
+		) );
+	}
+} );
+
+// Inject filter into media grid/modal via JS
+add_action( 'admin_footer-upload.php', function () {
+	$s = jbwp_get_settings();
+	if ( empty( $s['media_categories_enabled'] ) || ! taxonomy_exists( 'media_category' ) ) {
+		return;
+	}
+	$terms = get_terms( array( 'taxonomy' => 'media_category', 'hide_empty' => false ) );
+	if ( empty( $terms ) || is_wp_error( $terms ) ) {
+		return;
+	}
+	$opts = array( array( 'slug' => '', 'name' => 'Alle categorieën' ) );
+	foreach ( $terms as $t ) {
+		$opts[] = array( 'slug' => $t->slug, 'name' => $t->name );
+	}
+	?>
+	<script>
+	(function(){
+		if (!wp || !wp.media || !wp.media.view) return;
+		var cats = <?php echo wp_json_encode( $opts ); ?>;
+		var orig = wp.media.view.AttachmentFilters.All;
+		wp.media.view.AttachmentFilters.All = orig.extend({
+			createFilters: function(){
+				orig.prototype.createFilters.call(this);
+				var f = this.filters;
+				cats.forEach(function(c){
+					if (!c.slug) return;
+					f['media_category_' + c.slug] = {
+						text: c.name,
+						props: { media_category: c.slug },
+						priority: 60
+					};
+				});
+			}
+		});
+	})();
+	</script>
+	<?php
+} );
+
+// Let WP include media_category in AJAX attachment queries
+add_filter( 'ajax_query_attachments_args', function ( $query ) {
+	$s = jbwp_get_settings();
+	if ( empty( $s['media_categories_enabled'] ) ) {
+		return $query;
+	}
+	if ( ! empty( $_REQUEST['query']['media_category'] ) ) {
+		$query['tax_query'] = array(
+			array(
+				'taxonomy' => 'media_category',
+				'field'    => 'slug',
+				'terms'    => sanitize_key( $_REQUEST['query']['media_category'] ),
+			),
+		);
+	}
+	return $query;
+} );
+
+// Bulk-assign category from list view (quick edit is automatic with show_admin_column)
+// Category management sidebar in grid view via attachment details
+add_action( 'attachment_fields_to_edit', function ( $fields, $post ) {
+	$s = jbwp_get_settings();
+	if ( empty( $s['media_categories_enabled'] ) || ! taxonomy_exists( 'media_category' ) ) {
+		return $fields;
+	}
+	$terms = get_terms( array( 'taxonomy' => 'media_category', 'hide_empty' => false ) );
+	if ( empty( $terms ) || is_wp_error( $terms ) ) {
+		return $fields;
+	}
+	$current = wp_get_object_terms( $post->ID, 'media_category', array( 'fields' => 'ids' ) );
+	if ( is_wp_error( $current ) ) {
+		$current = array();
+	}
+	$html = '<div class="jbwp-media-cats">';
+	foreach ( $terms as $t ) {
+		$checked = in_array( $t->term_id, $current, true ) ? ' checked' : '';
+		$html .= '<label style="display:block;margin:2px 0"><input type="checkbox" name="jbwp_media_cat[]" value="' . esc_attr( $t->term_id ) . '"' . $checked . '> ' . esc_html( $t->name ) . '</label>';
+	}
+	$html .= '</div>';
+	$fields['media_category'] = array(
+		'label' => 'Categorie',
+		'input' => 'html',
+		'html'  => $html,
+	);
+	return $fields;
+}, 10, 2 );
+
+add_action( 'attachment_fields_to_save', function ( $post, $attachment ) {
+	$s = jbwp_get_settings();
+	if ( empty( $s['media_categories_enabled'] ) || ! taxonomy_exists( 'media_category' ) ) {
+		return $post;
+	}
+	$cat_ids = array();
+	if ( ! empty( $_REQUEST['jbwp_media_cat'] ) && is_array( $_REQUEST['jbwp_media_cat'] ) ) {
+		$cat_ids = array_map( 'absint', $_REQUEST['jbwp_media_cat'] );
+	}
+	wp_set_object_terms( $post['ID'], $cat_ids, 'media_category' );
+	return $post;
+}, 10, 2 );
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── MODULE: Media Replacement ───────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// Adds a "Replace media" link in the media library list view row actions and
+// a button in the attachment edit/modal view. Uploads a new file, swaps it
+// into the existing attachment record (same ID, same post_date), regenerates
+// thumbnails metadata, and — if the filename hasn't changed — preserves the
+// exact same URL so no links break.
+
+// Row action in list view
+add_filter( 'media_row_actions', function ( $actions, $post ) {
+	$s = jbwp_get_settings();
+	if ( empty( $s['media_replacement_enabled'] ) ) {
+		return $actions;
+	}
+	if ( ! current_user_can( 'upload_files' ) ) {
+		return $actions;
+	}
+	$url = admin_url( 'upload.php?page=jbwp-replace-media&attachment_id=' . $post->ID );
+	$actions['jbwp_replace'] = '<a href="' . esc_url( $url ) . '">Vervang bestand</a>';
+	return $actions;
+}, 10, 2 );
+
+// Register the replacement page (hidden from menu)
+add_action( 'admin_menu', function () {
+	$s = jbwp_get_settings();
+	if ( empty( $s['media_replacement_enabled'] ) ) {
+		return;
+	}
+	add_submenu_page(
+		null, // hidden from menu
+		'Vervang mediabestand',
+		'Vervang mediabestand',
+		'upload_files',
+		'jbwp-replace-media',
+		'jbwp_replace_media_page'
+	);
+} );
+
+function jbwp_replace_media_page() {
+	if ( ! current_user_can( 'upload_files' ) ) {
+		wp_die( 'Geen toegang.' );
+	}
+	$attachment_id = isset( $_GET['attachment_id'] ) ? absint( $_GET['attachment_id'] ) : 0;
+	if ( ! $attachment_id || ! get_post( $attachment_id ) ) {
+		wp_die( 'Ongeldig mediabestand.' );
+	}
+	$attachment = get_post( $attachment_id );
+	$filename   = basename( get_attached_file( $attachment_id ) );
+	$thumb_url  = wp_get_attachment_image_url( $attachment_id, 'thumbnail' );
+
+	// Handle upload
+	if ( ! empty( $_FILES['jbwp_replacement_file']['name'] ) ) {
+		check_admin_referer( 'jbwp_replace_media_' . $attachment_id );
+		$result = jbwp_do_replace_media( $attachment_id );
+		if ( is_wp_error( $result ) ) {
+			echo '<div class="notice notice-error"><p>' . esc_html( $result->get_error_message() ) . '</p></div>';
+		} else {
+			echo '<div class="notice notice-success"><p>Bestand succesvol vervangen!</p></div>';
+			// Refresh data
+			$filename  = basename( get_attached_file( $attachment_id ) );
+			$thumb_url = wp_get_attachment_image_url( $attachment_id, 'thumbnail' );
+		}
+	}
+	?>
+	<div class="wrap">
+		<h1>Vervang mediabestand</h1>
+		<div class="dwmcd-card" style="max-width:600px;margin-top:20px;background:#fff;padding:24px;border:1px solid #ddd;border-radius:8px">
+			<h2 style="margin-top:0">Huidig bestand</h2>
+			<div style="display:flex;gap:16px;align-items:center;margin-bottom:20px">
+				<?php if ( $thumb_url ) : ?>
+					<img src="<?php echo esc_url( $thumb_url ); ?>" style="width:80px;height:80px;object-fit:cover;border-radius:6px;border:1px solid #eee">
+				<?php endif; ?>
+				<div>
+					<strong><?php echo esc_html( $attachment->post_title ); ?></strong><br>
+					<code style="font-size:12px"><?php echo esc_html( $filename ); ?></code><br>
+					<small class="description"><?php echo esc_html( get_post_mime_type( $attachment_id ) ); ?></small>
+				</div>
+			</div>
+			<form method="post" enctype="multipart/form-data">
+				<?php wp_nonce_field( 'jbwp_replace_media_' . $attachment_id ); ?>
+				<div style="margin-bottom:16px">
+					<label for="jbwp_replacement_file"><strong>Nieuw bestand uploaden</strong></label><br>
+					<input type="file" name="jbwp_replacement_file" id="jbwp_replacement_file" required style="margin-top:6px">
+					<p class="description">Het bestaande media-ID, publicatiedatum en alle interne links blijven behouden.</p>
+				</div>
+				<button type="submit" class="button button-primary">Bestand vervangen</button>
+				<a href="<?php echo esc_url( admin_url( 'upload.php' ) ); ?>" class="button">Annuleren</a>
+			</form>
+		</div>
+	</div>
+	<?php
+}
+
+function jbwp_do_replace_media( $attachment_id ) {
+	require_once ABSPATH . 'wp-admin/includes/file.php';
+	require_once ABSPATH . 'wp-admin/includes/image.php';
+	require_once ABSPATH . 'wp-admin/includes/media.php';
+
+	$file = $_FILES['jbwp_replacement_file'] ?? null;
+	if ( ! $file || empty( $file['tmp_name'] ) ) {
+		return new WP_Error( 'no_file', 'Geen bestand geüpload.' );
+	}
+
+	// Validate file type
+	$filetype = wp_check_filetype_and_ext( $file['tmp_name'], $file['name'] );
+	if ( ! $filetype['type'] ) {
+		return new WP_Error( 'invalid_type', 'Dit bestandstype is niet toegestaan.' );
+	}
+
+	$old_file = get_attached_file( $attachment_id );
+	$upload_dir = wp_upload_dir();
+
+	// Delete old file and its thumbnails
+	$old_meta = wp_get_attachment_metadata( $attachment_id );
+	if ( is_array( $old_meta ) && ! empty( $old_meta['sizes'] ) ) {
+		$old_dir = dirname( $old_file );
+		foreach ( $old_meta['sizes'] as $size_data ) {
+			$size_file = $old_dir . '/' . $size_data['file'];
+			if ( file_exists( $size_file ) ) {
+				wp_delete_file( $size_file );
+			}
+		}
+	}
+	if ( file_exists( $old_file ) ) {
+		wp_delete_file( $old_file );
+	}
+
+	// Move new file to same directory
+	$target_dir = dirname( $old_file );
+	if ( ! file_exists( $target_dir ) ) {
+		wp_mkdir_p( $target_dir );
+	}
+	$new_filename = wp_unique_filename( $target_dir, $file['name'] );
+	$new_file     = $target_dir . '/' . $new_filename;
+
+	if ( ! move_uploaded_file( $file['tmp_name'], $new_file ) ) {
+		return new WP_Error( 'move_failed', 'Bestand kon niet worden verplaatst.' );
+	}
+
+	// Update attachment record
+	$relative = str_replace( $upload_dir['basedir'] . '/', '', $new_file );
+	update_attached_file( $attachment_id, $relative );
+
+	$new_mime = $filetype['type'];
+	wp_update_post( array(
+		'ID'             => $attachment_id,
+		'post_mime_type' => $new_mime,
+	) );
+
+	// Regenerate metadata (thumbnails, dimensions, etc.)
+	if ( wp_attachment_is_image( $attachment_id ) ) {
+		$metadata = wp_generate_attachment_metadata( $attachment_id, $new_file );
+		wp_update_attachment_metadata( $attachment_id, $metadata );
+	} else {
+		wp_update_attachment_metadata( $attachment_id, array() );
+	}
+
+	return true;
+}
+
+// Add "Replace" button in attachment edit modal (grid view)
+add_filter( 'attachment_fields_to_edit', function ( $fields, $post ) {
+	$s = jbwp_get_settings();
+	if ( empty( $s['media_replacement_enabled'] ) ) {
+		return $fields;
+	}
+	if ( ! current_user_can( 'upload_files' ) ) {
+		return $fields;
+	}
+	$url = admin_url( 'upload.php?page=jbwp-replace-media&attachment_id=' . $post->ID );
+	$fields['jbwp_replace'] = array(
+		'label' => '',
+		'input' => 'html',
+		'html'  => '<a href="' . esc_url( $url ) . '" class="button button-small" target="_blank" style="margin-top:4px"><span class="dashicons dashicons-update" style="vertical-align:middle;margin-right:4px;font-size:16px;line-height:24px"></span>Vervang bestand</a>',
+	);
+	return $fields;
+}, 20, 2 );
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── MODULE: Local User Avatar ───────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// Lets users pick any image from the WP Media Library as their avatar.
+// The attachment ID is stored in user meta `jbwp_user_avatar`. We hook
+// `pre_get_avatar_data` to serve the local image instead of Gravatar.
+
+// Filter avatar data to use local image
+add_filter( 'pre_get_avatar_data', function ( $args, $id_or_email ) {
+	$s = jbwp_get_settings();
+	if ( empty( $s['local_avatar_enabled'] ) ) {
+		return $args;
+	}
+
+	$user_id = 0;
+	if ( is_numeric( $id_or_email ) ) {
+		$user_id = (int) $id_or_email;
+	} elseif ( is_string( $id_or_email ) ) {
+		$user = get_user_by( 'email', $id_or_email );
+		if ( $user ) {
+			$user_id = $user->ID;
+		}
+	} elseif ( $id_or_email instanceof WP_User ) {
+		$user_id = $id_or_email->ID;
+	} elseif ( $id_or_email instanceof WP_Post ) {
+		$user_id = (int) $id_or_email->post_author;
+	} elseif ( $id_or_email instanceof WP_Comment ) {
+		if ( $id_or_email->user_id ) {
+			$user_id = (int) $id_or_email->user_id;
+		}
+	}
+
+	if ( ! $user_id ) {
+		return $args;
+	}
+
+	$avatar_id = (int) get_user_meta( $user_id, 'jbwp_user_avatar', true );
+	if ( ! $avatar_id ) {
+		return $args;
+	}
+
+	$url = wp_get_attachment_image_url( $avatar_id, 'thumbnail' );
+	if ( ! $url ) {
+		return $args;
+	}
+
+	$args['url']          = $url;
+	$args['found_avatar'] = true;
+
+	return $args;
+}, 10, 2 );
+
+// Add avatar picker to user profile
+add_action( 'show_user_profile', 'jbwp_user_avatar_field' );
+add_action( 'edit_user_profile', 'jbwp_user_avatar_field' );
+
+function jbwp_user_avatar_field( $user ) {
+	$s = jbwp_get_settings();
+	if ( empty( $s['local_avatar_enabled'] ) ) {
+		return;
+	}
+	$avatar_id  = (int) get_user_meta( $user->ID, 'jbwp_user_avatar', true );
+	$avatar_url = $avatar_id ? wp_get_attachment_image_url( $avatar_id, 'thumbnail' ) : '';
+	wp_enqueue_media();
+	?>
+	<h2>Profielfoto</h2>
+	<table class="form-table" role="presentation">
+		<tr>
+			<th><label>Avatar</label></th>
+			<td>
+				<div id="jbwp-avatar-preview" style="margin-bottom:10px">
+					<?php if ( $avatar_url ) : ?>
+						<img src="<?php echo esc_url( $avatar_url ); ?>" style="width:96px;height:96px;object-fit:cover;border-radius:50%;border:2px solid #ddd">
+					<?php else : ?>
+						<?php echo get_avatar( $user->ID, 96 ); ?>
+					<?php endif; ?>
+				</div>
+				<input type="hidden" name="jbwp_user_avatar" id="jbwp-user-avatar-id" value="<?php echo esc_attr( $avatar_id ); ?>">
+				<button type="button" class="button" id="jbwp-avatar-select">Afbeelding kiezen</button>
+				<?php if ( $avatar_id ) : ?>
+					<button type="button" class="button" id="jbwp-avatar-remove" style="color:#d63638">Verwijderen</button>
+				<?php else : ?>
+					<button type="button" class="button" id="jbwp-avatar-remove" style="color:#d63638;display:none">Verwijderen</button>
+				<?php endif; ?>
+				<p class="description">Kies een afbeelding uit de Mediabibliotheek als je avatar. Als er geen afbeelding is gekozen wordt Gravatar gebruikt.</p>
+				<script>
+				jQuery(function($){
+					var frame;
+					$('#jbwp-avatar-select').on('click', function(e){
+						e.preventDefault();
+						if (frame) { frame.open(); return; }
+						frame = wp.media({
+							title: 'Kies avatar',
+							button: { text: 'Gebruik als avatar' },
+							multiple: false,
+							library: { type: 'image' }
+						});
+						frame.on('select', function(){
+							var a = frame.state().get('selection').first().toJSON();
+							var url = a.sizes && a.sizes.thumbnail ? a.sizes.thumbnail.url : a.url;
+							$('#jbwp-user-avatar-id').val(a.id);
+							$('#jbwp-avatar-preview').html('<img src="'+url+'" style="width:96px;height:96px;object-fit:cover;border-radius:50%;border:2px solid #ddd">');
+							$('#jbwp-avatar-remove').show();
+						});
+						frame.open();
+					});
+					$('#jbwp-avatar-remove').on('click', function(e){
+						e.preventDefault();
+						$('#jbwp-user-avatar-id').val('');
+						$('#jbwp-avatar-preview').html('<?php echo esc_js( get_avatar( $user->ID, 96 ) ); ?>');
+						$(this).hide();
+					});
+				});
+				</script>
+			</td>
+		</tr>
+	</table>
+	<?php
+}
+
+// Save avatar on profile update
+add_action( 'personal_options_update', 'jbwp_save_user_avatar' );
+add_action( 'edit_user_profile_update', 'jbwp_save_user_avatar' );
+
+function jbwp_save_user_avatar( $user_id ) {
+	$s = jbwp_get_settings();
+	if ( empty( $s['local_avatar_enabled'] ) ) {
+		return;
+	}
+	if ( ! current_user_can( 'edit_user', $user_id ) ) {
+		return;
+	}
+	if ( ! isset( $_POST['jbwp_user_avatar'] ) ) {
+		return;
+	}
+	$avatar_id = absint( $_POST['jbwp_user_avatar'] );
+	if ( $avatar_id ) {
+		update_user_meta( $user_id, 'jbwp_user_avatar', $avatar_id );
+	} else {
+		delete_user_meta( $user_id, 'jbwp_user_avatar' );
+	}
+}
+
+
 // ── Roadmap / Coming Soon page ──────────────────────────────────────────────
 
 function jbwp_roadmap_features() {
@@ -2879,41 +3429,7 @@ function jbwp_roadmap_features() {
 				),
 			),
 		),
-		'media' => array(
-			'label' => 'Media & Gebruikers',
-			'icon'  => 'format-gallery',
-			'color' => '#8b5cf6',
-			'items' => array(
-				array(
-					'title'       => 'Media Categories',
-					'description' => 'Voeg categorieën toe aan de mediabibliotheek voor betere organisatie.',
-					'icon'        => 'category',
-					'bullets'     => array(
-						'Drag-and-drop categorisering van media-items',
-						'Filteren op categorie bij het invoegen van media in content',
-					),
-				),
-				array(
-					'title'       => 'Media Replacement',
-					'description' => 'Vervang eenvoudig elk type mediabestand met een nieuw bestand.',
-					'icon'        => 'update',
-					'bullets'     => array(
-						'Behoudt bestaande media-ID, publicatiedatum en bestandsnaam',
-						'Geen bestaande links breken',
-						'Vervangen vanuit zowel de grid- als lijstweergave van de mediabibliotheek',
-					),
-				),
-				array(
-					'title'       => 'Local User Avatar',
-					'description' => 'Gebruik elke afbeelding uit de WordPress Mediabibliotheek als gebruikersavatar.',
-					'icon'        => 'admin-users',
-					'bullets'     => array(
-						'Kies een avatar rechtstreeks uit de Mediabibliotheek',
-						'Geen externe diensten zoals Gravatar nodig',
-					),
-				),
-			),
-		),
+		// Media & Gebruikers — verwijderd uit roadmap, gebouwd in v4.1.0
 	);
 }
 
