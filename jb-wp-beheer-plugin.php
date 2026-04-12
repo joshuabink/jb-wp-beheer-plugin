@@ -3,7 +3,7 @@
  * Plugin Name:       JB WP Beheer Plugin
  * Plugin URI:        https://github.com/joshuabink/jb-wp-beheer-plugin
  * Description:       Professioneel klantdashboard voor WordPress websites.
- * Version:           4.2.1
+ * Version:           4.2.2
  * Author:            Joshua Bink
  * Author URI:        https://github.com/joshuabink
  * License:           GPL-2.0-or-later
@@ -33,7 +33,7 @@ if ( defined( 'JBWP_PLUGIN_VERSION' ) ) {
 // ── Plugin identity ──────────────────────────────────────────────────────────
 // Public-facing identifiers (slug, version, paths). Keep in sync with the
 // header above so the auto-updater and WP plugin screens use the same values.
-define( 'JBWP_PLUGIN_VERSION', '4.2.1' );
+define( 'JBWP_PLUGIN_VERSION', '4.2.2' );
 define( 'JBWP_PLUGIN_SLUG',    'jb-wp-beheer-plugin' );
 define( 'JBWP_PLUGIN_FILE',    __FILE__ );
 define( 'JBWP_PLUGIN_DIR',     plugin_dir_path( __FILE__ ) );
@@ -2858,11 +2858,32 @@ add_action( 'restrict_manage_posts', function () {
 	echo '</select>';
 } );
 
+// ── Intercept __uncategorized before WP parses it as a term slug ────────────
+// The taxonomy has query_var => true, so WP auto-parses ?media_category=X as
+// a taxonomy query. Since "__uncategorized" is not a real term slug, WP would
+// return zero results. We intercept it here and replace it with a custom flag.
+
+add_filter( 'request', function ( $query_vars ) {
+	if ( isset( $query_vars['media_category'] ) && '__uncategorized' === $query_vars['media_category'] ) {
+		unset( $query_vars['media_category'] );
+		$query_vars['jbwp_show_uncategorized'] = 1;
+	}
+	return $query_vars;
+} );
+
 // ── Query filter (list view + uncategorized support) ────────────────────────
 
 add_action( 'pre_get_posts', function ( $query ) {
 	global $pagenow;
 	if ( 'upload.php' !== $pagenow || ! $query->is_main_query() ) {
+		return;
+	}
+	// Check our custom flag (set by the request filter above)
+	if ( ! empty( $query->get( 'jbwp_show_uncategorized' ) ) ) {
+		$query->set( 'tax_query', array( array(
+			'taxonomy' => 'media_category',
+			'operator' => 'NOT EXISTS',
+		) ) );
 		return;
 	}
 	$cat = isset( $_GET['media_category'] ) ? sanitize_key( $_GET['media_category'] ) : '';
