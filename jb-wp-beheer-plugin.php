@@ -3,7 +3,7 @@
  * Plugin Name:       JB WP Beheer Plugin
  * Plugin URI:        https://github.com/joshuabink/jb-wp-beheer-plugin
  * Description:       Professioneel klantdashboard voor WordPress websites.
- * Version:           4.2.0
+ * Version:           4.2.1
  * Author:            Joshua Bink
  * Author URI:        https://github.com/joshuabink
  * License:           GPL-2.0-or-later
@@ -33,7 +33,7 @@ if ( defined( 'JBWP_PLUGIN_VERSION' ) ) {
 // ── Plugin identity ──────────────────────────────────────────────────────────
 // Public-facing identifiers (slug, version, paths). Keep in sync with the
 // header above so the auto-updater and WP plugin screens use the same values.
-define( 'JBWP_PLUGIN_VERSION', '4.2.0' );
+define( 'JBWP_PLUGIN_VERSION', '4.2.1' );
 define( 'JBWP_PLUGIN_SLUG',    'jb-wp-beheer-plugin' );
 define( 'JBWP_PLUGIN_FILE',    __FILE__ );
 define( 'JBWP_PLUGIN_DIR',     plugin_dir_path( __FILE__ ) );
@@ -2773,13 +2773,65 @@ add_action( 'init', function () {
 		),
 		'hierarchical'      => true,
 		'show_ui'           => true,
-		'show_admin_column' => true,
+		'show_admin_column' => false,
 		'show_in_rest'      => true,
 		'query_var'         => true,
 		'rewrite'           => false,
 		'update_count_callback' => '_update_generic_term_count',
 	) );
 } );
+
+// ── Custom "Map" column in list view with inline assign ─────────────────────
+
+add_filter( 'manage_media_columns', function ( $columns ) {
+	$s = jbwp_get_settings();
+	if ( empty( $s['media_categories_enabled'] ) ) {
+		return $columns;
+	}
+	// Insert after 'author' column
+	$new = array();
+	foreach ( $columns as $key => $label ) {
+		$new[ $key ] = $label;
+		if ( 'author' === $key ) {
+			$new['jbwp_media_folder'] = 'Map';
+		}
+	}
+	return $new;
+} );
+
+add_action( 'manage_media_custom_column', function ( $column, $post_id ) {
+	if ( 'jbwp_media_folder' !== $column ) {
+		return;
+	}
+	$terms = wp_get_object_terms( $post_id, 'media_category' );
+	$all   = get_terms( array( 'taxonomy' => 'media_category', 'hide_empty' => false ) );
+	if ( is_wp_error( $all ) ) {
+		$all = array();
+	}
+
+	if ( ! empty( $terms ) && ! is_wp_error( $terms ) ) {
+		$names = array();
+		foreach ( $terms as $t ) {
+			$names[] = '<a href="' . esc_url( admin_url( 'upload.php?media_category=' . $t->slug ) ) . '">' . esc_html( $t->name ) . '</a>';
+		}
+		echo implode( ', ', $names );
+		echo ' <button class="jbwp-list-assign-btn" data-id="' . esc_attr( $post_id ) . '" title="Map wijzigen" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:12px;vertical-align:middle">&#9998;</button>';
+	} else {
+		echo '<span style="color:#9ca3af">&mdash;</span> ';
+		echo '<button class="jbwp-list-assign-btn" data-id="' . esc_attr( $post_id ) . '" style="background:none;border:none;cursor:pointer;color:var(--dwmcd-accent,#2952ff);font-size:12px">Toewijzen</button>';
+	}
+
+	// Hidden dropdown (shown on click)
+	echo '<div class="jbwp-list-assign-dropdown" data-id="' . esc_attr( $post_id ) . '" style="display:none">';
+	echo '<select class="jbwp-list-assign-select" data-id="' . esc_attr( $post_id ) . '">';
+	echo '<option value="0">— Geen map —</option>';
+	$current_ids = ( ! empty( $terms ) && ! is_wp_error( $terms ) ) ? wp_list_pluck( $terms, 'term_id' ) : array();
+	foreach ( $all as $t ) {
+		$sel = in_array( $t->term_id, $current_ids, true ) ? ' selected' : '';
+		echo '<option value="' . esc_attr( $t->term_id ) . '"' . $sel . '>' . esc_html( $t->name ) . '</option>';
+	}
+	echo '</select></div>';
+}, 10, 2 );
 
 // ── Dropdown filter fallback for list view ──────────────────────────────────
 
@@ -2815,15 +2867,10 @@ add_action( 'pre_get_posts', function ( $query ) {
 	}
 	$cat = isset( $_GET['media_category'] ) ? sanitize_key( $_GET['media_category'] ) : '';
 	if ( '__uncategorized' === $cat ) {
-		$all_terms = get_terms( array( 'taxonomy' => 'media_category', 'fields' => 'ids', 'hide_empty' => false ) );
-		if ( ! empty( $all_terms ) && ! is_wp_error( $all_terms ) ) {
-			$query->set( 'tax_query', array( array(
-				'taxonomy' => 'media_category',
-				'field'    => 'term_id',
-				'terms'    => $all_terms,
-				'operator' => 'NOT IN',
-			) ) );
-		}
+		$query->set( 'tax_query', array( array(
+			'taxonomy' => 'media_category',
+			'operator' => 'NOT EXISTS',
+		) ) );
 	} elseif ( '' !== $cat ) {
 		$query->set( 'tax_query', array( array(
 			'taxonomy' => 'media_category',
@@ -2842,15 +2889,10 @@ add_filter( 'ajax_query_attachments_args', function ( $query ) {
 	}
 	$cat = ! empty( $_REQUEST['query']['media_category'] ) ? sanitize_key( $_REQUEST['query']['media_category'] ) : '';
 	if ( '__uncategorized' === $cat ) {
-		$all_terms = get_terms( array( 'taxonomy' => 'media_category', 'fields' => 'ids', 'hide_empty' => false ) );
-		if ( ! empty( $all_terms ) && ! is_wp_error( $all_terms ) ) {
-			$query['tax_query'] = array( array(
-				'taxonomy' => 'media_category',
-				'field'    => 'term_id',
-				'terms'    => $all_terms,
-				'operator' => 'NOT IN',
-			) );
-		}
+		$query['tax_query'] = array( array(
+			'taxonomy' => 'media_category',
+			'operator' => 'NOT EXISTS',
+		) );
 	} elseif ( '' !== $cat ) {
 		$query['tax_query'] = array( array(
 			'taxonomy' => 'media_category',
@@ -2977,21 +3019,17 @@ add_action( 'wp_ajax_jbwp_media_folder_assign', function () {
 	}
 	$total = (int) wp_count_posts( 'attachment' )->inherit;
 	$uncat = $total;
-	if ( ! empty( $term_ids ) ) {
-		$uncat_q = new WP_Query( array(
-			'post_type'      => 'attachment',
-			'post_status'    => 'inherit',
-			'posts_per_page' => -1,
-			'fields'         => 'ids',
-			'tax_query'      => array( array(
-				'taxonomy' => 'media_category',
-				'field'    => 'term_id',
-				'terms'    => $term_ids,
-				'operator' => 'NOT IN',
-			) ),
-		) );
-		$uncat = $uncat_q->found_posts;
-	}
+	$uncat_q = new WP_Query( array(
+		'post_type'      => 'attachment',
+		'post_status'    => 'inherit',
+		'posts_per_page' => -1,
+		'fields'         => 'ids',
+		'tax_query'      => array( array(
+			'taxonomy' => 'media_category',
+			'operator' => 'NOT EXISTS',
+		) ),
+	) );
+	$uncat = $uncat_q->found_posts;
 	wp_send_json_success( array( 'counts' => $counts, 'total' => $total, 'uncategorized' => (int) $uncat ) );
 } );
 
@@ -3024,23 +3062,17 @@ add_action( 'admin_footer-upload.php', function () {
 	// Count uncategorized
 	$all_term_ids = wp_list_pluck( $terms, 'term_id' );
 	$uncat_count  = 0;
-	if ( ! empty( $all_term_ids ) ) {
-		$uncat_q = new WP_Query( array(
-			'post_type'      => 'attachment',
-			'post_status'    => 'inherit',
-			'posts_per_page' => -1,
-			'fields'         => 'ids',
-			'tax_query'      => array( array(
-				'taxonomy' => 'media_category',
-				'field'    => 'term_id',
-				'terms'    => $all_term_ids,
-				'operator' => 'NOT IN',
-			) ),
-		) );
-		$uncat_count = $uncat_q->found_posts;
-	} else {
-		$uncat_count = wp_count_posts( 'attachment' )->inherit;
-	}
+	$uncat_q = new WP_Query( array(
+		'post_type'      => 'attachment',
+		'post_status'    => 'inherit',
+		'posts_per_page' => -1,
+		'fields'         => 'ids',
+		'tax_query'      => array( array(
+			'taxonomy' => 'media_category',
+			'operator' => 'NOT EXISTS',
+		) ),
+	) );
+	$uncat_count = $uncat_q->found_posts;
 	$total_count = wp_count_posts( 'attachment' )->inherit;
 
 	$folders_data = array();
@@ -3167,6 +3199,18 @@ add_action( 'admin_footer-upload.php', function () {
 		content:''; position:absolute; inset:0; background:rgba(255,255,255,.5);
 		border-radius:0; pointer-events:none;
 	}
+	/* List view inline assign dropdown */
+	.jbwp-list-assign-dropdown {
+		position:absolute; z-index:100; background:#fff;
+		border:1px solid var(--dwmcd-border,#e3e9f2); border-radius:8px;
+		padding:6px; box-shadow:0 4px 16px rgba(0,0,0,.12);
+		margin-top:4px;
+	}
+	.jbwp-list-assign-select {
+		min-width:140px; padding:4px 8px; border:1px solid #d1d5db;
+		border-radius:6px; font-size:13px; cursor:pointer;
+	}
+	.column-jbwp_media_folder { position:relative; }
 	</style>
 
 	<script>
@@ -3512,6 +3556,50 @@ add_action( 'admin_footer-upload.php', function () {
 						wp.media.frame.content.get().collection.props.set({ media_category: currentSlug });
 					}
 				}, 200);
+			});
+		}
+
+		// ── List view: inline folder assignment ─────────────────────────
+		if (!isGrid) {
+			$(document).on('click', '.jbwp-list-assign-btn', function(e) {
+				e.preventDefault();
+				var btn = $(this);
+				var id = btn.data('id');
+				var dd = $('.jbwp-list-assign-dropdown[data-id="'+id+'"]');
+				// Hide any other open dropdowns
+				$('.jbwp-list-assign-dropdown').not(dd).hide();
+				dd.toggle();
+				if (dd.is(':visible')) {
+					dd.find('select').focus();
+				}
+			});
+
+			$(document).on('change', '.jbwp-list-assign-select', function() {
+				var sel = $(this);
+				var attachId = sel.data('id');
+				var termId = parseInt(sel.val(), 10);
+				var dd = sel.closest('.jbwp-list-assign-dropdown');
+				dd.hide();
+
+				$.post(ajaxurl, {
+					action: 'jbwp_media_folder_assign',
+					nonce: nonce,
+					attachment_ids: [attachId],
+					term_id: termId
+				}, function(r) {
+					if (r.success) {
+						toast('Map toegewezen');
+						// Reload to update the column
+						window.location.reload();
+					}
+				});
+			});
+
+			// Close dropdown when clicking outside
+			$(document).on('click', function(e) {
+				if (!$(e.target).closest('.jbwp-list-assign-btn, .jbwp-list-assign-dropdown').length) {
+					$('.jbwp-list-assign-dropdown').hide();
+				}
 			});
 		}
 	});
