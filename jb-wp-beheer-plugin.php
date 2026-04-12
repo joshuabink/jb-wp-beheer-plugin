@@ -3,7 +3,7 @@
  * Plugin Name:       JB WP Beheer Plugin
  * Plugin URI:        https://github.com/joshuabink/jb-wp-beheer-plugin
  * Description:       Professioneel klantdashboard voor WordPress websites.
- * Version:           4.1.0
+ * Version:           4.2.0
  * Author:            Joshua Bink
  * Author URI:        https://github.com/joshuabink
  * License:           GPL-2.0-or-later
@@ -33,7 +33,7 @@ if ( defined( 'JBWP_PLUGIN_VERSION' ) ) {
 // ── Plugin identity ──────────────────────────────────────────────────────────
 // Public-facing identifiers (slug, version, paths). Keep in sync with the
 // header above so the auto-updater and WP plugin screens use the same values.
-define( 'JBWP_PLUGIN_VERSION', '4.1.0' );
+define( 'JBWP_PLUGIN_VERSION', '4.2.0' );
 define( 'JBWP_PLUGIN_SLUG',    'jb-wp-beheer-plugin' );
 define( 'JBWP_PLUGIN_FILE',    __FILE__ );
 define( 'JBWP_PLUGIN_DIR',     plugin_dir_path( __FILE__ ) );
@@ -2742,10 +2742,17 @@ add_action( 'wp_ajax_dwmcd_reset_settings', function () {
 // ── MODULE: Media Categories ────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 //
-// Registers a flat (non-hierarchical) taxonomy `media_category` on the
-// `attachment` post type. Adds a dropdown filter to the media library list
-// view, and injects a filter into the media modal (grid view) so users can
-// filter by category when inserting media into content.
+// CatFolders-style media organization. Registers a hierarchical taxonomy
+// `media_category` on `attachment`, injects a sidebar folder tree into the
+// media library page with:
+//  • Real-time grid filtering (no page reload in grid view)
+//  • Drag-and-drop media → folder assignment
+//  • Inline folder CRUD (create, rename, delete)
+//  • Dynamic item counts that update after every action
+//  • "Uncategorized" pseudo-folder
+//  • List-view dropdown filter fallback
+
+// ── Taxonomy registration ───────────────────────────────────────────────────
 
 add_action( 'init', function () {
 	$s = jbwp_get_settings();
@@ -2754,15 +2761,15 @@ add_action( 'init', function () {
 	}
 	register_taxonomy( 'media_category', 'attachment', array(
 		'labels' => array(
-			'name'              => 'Mediacategorieën',
-			'singular_name'     => 'Mediacategorie',
-			'search_items'      => 'Categorieën zoeken',
-			'all_items'         => 'Alle categorieën',
-			'edit_item'         => 'Categorie bewerken',
-			'update_item'       => 'Categorie bijwerken',
-			'add_new_item'      => 'Nieuwe categorie toevoegen',
-			'new_item_name'     => 'Nieuwe categorienaam',
-			'menu_name'         => 'Categorieën',
+			'name'              => 'Mediamappen',
+			'singular_name'     => 'Mediamap',
+			'search_items'      => 'Mappen zoeken',
+			'all_items'         => 'Alle mappen',
+			'edit_item'         => 'Map bewerken',
+			'update_item'       => 'Map bijwerken',
+			'add_new_item'      => 'Nieuwe map',
+			'new_item_name'     => 'Nieuwe mapnaam',
+			'menu_name'         => 'Mediamappen',
 		),
 		'hierarchical'      => true,
 		'show_ui'           => true,
@@ -2774,58 +2781,13 @@ add_action( 'init', function () {
 	) );
 } );
 
-// Dropdown filter in media list view
+// ── Dropdown filter fallback for list view ──────────────────────────────────
+
 add_action( 'restrict_manage_posts', function () {
 	global $typenow;
 	if ( 'attachment' !== $typenow ) {
 		return;
 	}
-	$s = jbwp_get_settings();
-	if ( empty( $s['media_categories_enabled'] ) ) {
-		return;
-	}
-	if ( ! taxonomy_exists( 'media_category' ) ) {
-		return;
-	}
-	$terms = get_terms( array( 'taxonomy' => 'media_category', 'hide_empty' => false ) );
-	if ( empty( $terms ) || is_wp_error( $terms ) ) {
-		return;
-	}
-	$selected = isset( $_GET['media_category'] ) ? sanitize_key( $_GET['media_category'] ) : '';
-	echo '<select name="media_category" id="filter-by-media-category">';
-	echo '<option value="">Alle categorieën</option>';
-	foreach ( $terms as $term ) {
-		printf(
-			'<option value="%s"%s>%s (%d)</option>',
-			esc_attr( $term->slug ),
-			selected( $selected, $term->slug, false ),
-			esc_html( $term->name ),
-			(int) $term->count
-		);
-	}
-	echo '</select>';
-} );
-
-// Filter query in media list view
-add_action( 'pre_get_posts', function ( $query ) {
-	global $pagenow;
-	if ( 'upload.php' !== $pagenow || ! $query->is_main_query() ) {
-		return;
-	}
-	$cat = isset( $_GET['media_category'] ) ? sanitize_key( $_GET['media_category'] ) : '';
-	if ( '' !== $cat ) {
-		$query->set( 'tax_query', array(
-			array(
-				'taxonomy' => 'media_category',
-				'field'    => 'slug',
-				'terms'    => $cat,
-			),
-		) );
-	}
-} );
-
-// Inject filter into media grid/modal via JS
-add_action( 'admin_footer-upload.php', function () {
 	$s = jbwp_get_settings();
 	if ( empty( $s['media_categories_enabled'] ) || ! taxonomy_exists( 'media_category' ) ) {
 		return;
@@ -2834,56 +2796,74 @@ add_action( 'admin_footer-upload.php', function () {
 	if ( empty( $terms ) || is_wp_error( $terms ) ) {
 		return;
 	}
-	$opts = array( array( 'slug' => '', 'name' => 'Alle categorieën' ) );
-	foreach ( $terms as $t ) {
-		$opts[] = array( 'slug' => $t->slug, 'name' => $t->name );
+	$selected = isset( $_GET['media_category'] ) ? sanitize_key( $_GET['media_category'] ) : '';
+	echo '<select name="media_category" id="filter-by-media-category">';
+	echo '<option value="">Alle mappen</option>';
+	echo '<option value="__uncategorized"' . selected( $selected, '__uncategorized', false ) . '>Niet gecategoriseerd</option>';
+	foreach ( $terms as $term ) {
+		printf( '<option value="%s"%s>%s (%d)</option>', esc_attr( $term->slug ), selected( $selected, $term->slug, false ), esc_html( $term->name ), (int) $term->count );
 	}
-	?>
-	<script>
-	(function(){
-		if (!wp || !wp.media || !wp.media.view) return;
-		var cats = <?php echo wp_json_encode( $opts ); ?>;
-		var orig = wp.media.view.AttachmentFilters.All;
-		wp.media.view.AttachmentFilters.All = orig.extend({
-			createFilters: function(){
-				orig.prototype.createFilters.call(this);
-				var f = this.filters;
-				cats.forEach(function(c){
-					if (!c.slug) return;
-					f['media_category_' + c.slug] = {
-						text: c.name,
-						props: { media_category: c.slug },
-						priority: 60
-					};
-				});
-			}
-		});
-	})();
-	</script>
-	<?php
+	echo '</select>';
 } );
 
-// Let WP include media_category in AJAX attachment queries
+// ── Query filter (list view + uncategorized support) ────────────────────────
+
+add_action( 'pre_get_posts', function ( $query ) {
+	global $pagenow;
+	if ( 'upload.php' !== $pagenow || ! $query->is_main_query() ) {
+		return;
+	}
+	$cat = isset( $_GET['media_category'] ) ? sanitize_key( $_GET['media_category'] ) : '';
+	if ( '__uncategorized' === $cat ) {
+		$all_terms = get_terms( array( 'taxonomy' => 'media_category', 'fields' => 'ids', 'hide_empty' => false ) );
+		if ( ! empty( $all_terms ) && ! is_wp_error( $all_terms ) ) {
+			$query->set( 'tax_query', array( array(
+				'taxonomy' => 'media_category',
+				'field'    => 'term_id',
+				'terms'    => $all_terms,
+				'operator' => 'NOT IN',
+			) ) );
+		}
+	} elseif ( '' !== $cat ) {
+		$query->set( 'tax_query', array( array(
+			'taxonomy' => 'media_category',
+			'field'    => 'slug',
+			'terms'    => $cat,
+		) ) );
+	}
+} );
+
+// ── AJAX filter for grid view ───────────────────────────────────────────────
+
 add_filter( 'ajax_query_attachments_args', function ( $query ) {
 	$s = jbwp_get_settings();
 	if ( empty( $s['media_categories_enabled'] ) ) {
 		return $query;
 	}
-	if ( ! empty( $_REQUEST['query']['media_category'] ) ) {
-		$query['tax_query'] = array(
-			array(
+	$cat = ! empty( $_REQUEST['query']['media_category'] ) ? sanitize_key( $_REQUEST['query']['media_category'] ) : '';
+	if ( '__uncategorized' === $cat ) {
+		$all_terms = get_terms( array( 'taxonomy' => 'media_category', 'fields' => 'ids', 'hide_empty' => false ) );
+		if ( ! empty( $all_terms ) && ! is_wp_error( $all_terms ) ) {
+			$query['tax_query'] = array( array(
 				'taxonomy' => 'media_category',
-				'field'    => 'slug',
-				'terms'    => sanitize_key( $_REQUEST['query']['media_category'] ),
-			),
-		);
+				'field'    => 'term_id',
+				'terms'    => $all_terms,
+				'operator' => 'NOT IN',
+			) );
+		}
+	} elseif ( '' !== $cat ) {
+		$query['tax_query'] = array( array(
+			'taxonomy' => 'media_category',
+			'field'    => 'slug',
+			'terms'    => $cat,
+		) );
 	}
 	return $query;
 } );
 
-// Bulk-assign category from list view (quick edit is automatic with show_admin_column)
-// Category management sidebar in grid view via attachment details
-add_action( 'attachment_fields_to_edit', function ( $fields, $post ) {
+// ── Attachment details: category checkboxes ────────────────────────────────
+
+add_filter( 'attachment_fields_to_edit', function ( $fields, $post ) {
 	$s = jbwp_get_settings();
 	if ( empty( $s['media_categories_enabled'] ) || ! taxonomy_exists( 'media_category' ) ) {
 		return $fields;
@@ -2902,15 +2882,11 @@ add_action( 'attachment_fields_to_edit', function ( $fields, $post ) {
 		$html .= '<label style="display:block;margin:2px 0"><input type="checkbox" name="jbwp_media_cat[]" value="' . esc_attr( $t->term_id ) . '"' . $checked . '> ' . esc_html( $t->name ) . '</label>';
 	}
 	$html .= '</div>';
-	$fields['media_category'] = array(
-		'label' => 'Categorie',
-		'input' => 'html',
-		'html'  => $html,
-	);
+	$fields['media_category'] = array( 'label' => 'Map', 'input' => 'html', 'html' => $html );
 	return $fields;
 }, 10, 2 );
 
-add_action( 'attachment_fields_to_save', function ( $post, $attachment ) {
+add_filter( 'attachment_fields_to_save', function ( $post, $attachment ) {
 	$s = jbwp_get_settings();
 	if ( empty( $s['media_categories_enabled'] ) || ! taxonomy_exists( 'media_category' ) ) {
 		return $post;
@@ -2922,6 +2898,626 @@ add_action( 'attachment_fields_to_save', function ( $post, $attachment ) {
 	wp_set_object_terms( $post['ID'], $cat_ids, 'media_category' );
 	return $post;
 }, 10, 2 );
+
+// ── AJAX: folder CRUD + bulk assign + count refresh ────────────────────────
+
+add_action( 'wp_ajax_jbwp_media_folder_create', function () {
+	check_ajax_referer( 'dwmcd_nonce', 'nonce' );
+	if ( ! current_user_can( 'upload_files' ) ) {
+		wp_send_json_error();
+	}
+	$name = sanitize_text_field( wp_unslash( $_POST['name'] ?? '' ) );
+	if ( '' === $name ) {
+		wp_send_json_error( array( 'message' => 'Naam is verplicht.' ) );
+	}
+	$result = wp_insert_term( $name, 'media_category' );
+	if ( is_wp_error( $result ) ) {
+		wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+	}
+	$term = get_term( $result['term_id'], 'media_category' );
+	wp_send_json_success( array( 'id' => $term->term_id, 'slug' => $term->slug, 'name' => $term->name, 'count' => 0 ) );
+} );
+
+add_action( 'wp_ajax_jbwp_media_folder_rename', function () {
+	check_ajax_referer( 'dwmcd_nonce', 'nonce' );
+	if ( ! current_user_can( 'upload_files' ) ) {
+		wp_send_json_error();
+	}
+	$term_id = absint( $_POST['term_id'] ?? 0 );
+	$name    = sanitize_text_field( wp_unslash( $_POST['name'] ?? '' ) );
+	if ( ! $term_id || '' === $name ) {
+		wp_send_json_error();
+	}
+	$result = wp_update_term( $term_id, 'media_category', array( 'name' => $name ) );
+	if ( is_wp_error( $result ) ) {
+		wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+	}
+	wp_send_json_success();
+} );
+
+add_action( 'wp_ajax_jbwp_media_folder_delete', function () {
+	check_ajax_referer( 'dwmcd_nonce', 'nonce' );
+	if ( ! current_user_can( 'upload_files' ) ) {
+		wp_send_json_error();
+	}
+	$term_id = absint( $_POST['term_id'] ?? 0 );
+	if ( ! $term_id ) {
+		wp_send_json_error();
+	}
+	wp_delete_term( $term_id, 'media_category' );
+	wp_send_json_success();
+} );
+
+add_action( 'wp_ajax_jbwp_media_folder_assign', function () {
+	check_ajax_referer( 'dwmcd_nonce', 'nonce' );
+	if ( ! current_user_can( 'upload_files' ) ) {
+		wp_send_json_error();
+	}
+	$ids     = array_map( 'absint', (array) ( $_POST['attachment_ids'] ?? array() ) );
+	$term_id = absint( $_POST['term_id'] ?? 0 );
+	if ( empty( $ids ) ) {
+		wp_send_json_error();
+	}
+	foreach ( $ids as $id ) {
+		if ( $term_id ) {
+			wp_set_object_terms( $id, array( $term_id ), 'media_category' );
+		} else {
+			wp_set_object_terms( $id, array(), 'media_category' );
+		}
+	}
+	// Return updated counts so the sidebar can refresh without a page reload.
+	$terms     = get_terms( array( 'taxonomy' => 'media_category', 'hide_empty' => false ) );
+	$counts    = array();
+	$term_ids  = array();
+	if ( ! is_wp_error( $terms ) ) {
+		foreach ( $terms as $t ) {
+			$counts[ $t->slug ] = (int) $t->count;
+			$term_ids[]         = $t->term_id;
+		}
+	}
+	$total = (int) wp_count_posts( 'attachment' )->inherit;
+	$uncat = $total;
+	if ( ! empty( $term_ids ) ) {
+		$uncat_q = new WP_Query( array(
+			'post_type'      => 'attachment',
+			'post_status'    => 'inherit',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+			'tax_query'      => array( array(
+				'taxonomy' => 'media_category',
+				'field'    => 'term_id',
+				'terms'    => $term_ids,
+				'operator' => 'NOT IN',
+			) ),
+		) );
+		$uncat = $uncat_q->found_posts;
+	}
+	wp_send_json_success( array( 'counts' => $counts, 'total' => $total, 'uncategorized' => (int) $uncat ) );
+} );
+
+// ── Enqueue jQuery UI for drag-and-drop on media page ──────────────────────
+
+add_action( 'admin_enqueue_scripts', function ( $hook ) {
+	if ( 'upload.php' !== $hook ) {
+		return;
+	}
+	$s = jbwp_get_settings();
+	if ( empty( $s['media_categories_enabled'] ) ) {
+		return;
+	}
+	wp_enqueue_script( 'jquery-ui-draggable' );
+	wp_enqueue_script( 'jquery-ui-droppable' );
+} );
+
+// ── Sidebar injection (grid + list view) ───────────────────────────────────
+
+add_action( 'admin_footer-upload.php', function () {
+	$s = jbwp_get_settings();
+	if ( empty( $s['media_categories_enabled'] ) || ! taxonomy_exists( 'media_category' ) ) {
+		return;
+	}
+	$terms = get_terms( array( 'taxonomy' => 'media_category', 'hide_empty' => false ) );
+	if ( is_wp_error( $terms ) ) {
+		$terms = array();
+	}
+
+	// Count uncategorized
+	$all_term_ids = wp_list_pluck( $terms, 'term_id' );
+	$uncat_count  = 0;
+	if ( ! empty( $all_term_ids ) ) {
+		$uncat_q = new WP_Query( array(
+			'post_type'      => 'attachment',
+			'post_status'    => 'inherit',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+			'tax_query'      => array( array(
+				'taxonomy' => 'media_category',
+				'field'    => 'term_id',
+				'terms'    => $all_term_ids,
+				'operator' => 'NOT IN',
+			) ),
+		) );
+		$uncat_count = $uncat_q->found_posts;
+	} else {
+		$uncat_count = wp_count_posts( 'attachment' )->inherit;
+	}
+	$total_count = wp_count_posts( 'attachment' )->inherit;
+
+	$folders_data = array();
+	foreach ( $terms as $t ) {
+		$folders_data[] = array( 'id' => $t->term_id, 'slug' => $t->slug, 'name' => $t->name, 'count' => (int) $t->count );
+	}
+	$current = isset( $_GET['media_category'] ) ? sanitize_key( $_GET['media_category'] ) : '';
+	$is_grid = ! isset( $_GET['mode'] ) || 'grid' === ( $_GET['mode'] ?? '' );
+	?>
+	<style>
+	/* ── Media folder sidebar ─────────────────────────────────────────── */
+	.jbwp-media-wrap { display:flex; gap:0; min-height:calc(100vh - 100px); }
+	.jbwp-media-sidebar {
+		width:240px; min-width:200px; flex-shrink:0;
+		background:var(--dwmcd-panel,#fff); border-right:1px solid var(--dwmcd-border,#e5e7eb);
+		padding:14px 0; position:sticky; top:32px; align-self:flex-start;
+		max-height:calc(100vh - 60px); overflow-y:auto;
+		font-size:13px; box-shadow:1px 0 0 rgba(0,0,0,.03);
+	}
+	.jbwp-sidebar-header {
+		display:flex; align-items:center; justify-content:space-between;
+		padding:0 14px 10px; border-bottom:1px solid var(--dwmcd-border,#e5e7eb);
+		margin-bottom:8px;
+	}
+	.jbwp-sidebar-header h3 {
+		font-size:11px; font-weight:700; text-transform:uppercase;
+		letter-spacing:.06em; color:var(--dwmcd-muted,#6b7280); margin:0;
+	}
+	.jbwp-sidebar-add-btn {
+		background:none; border:none; cursor:pointer; padding:2px 4px;
+		color:var(--dwmcd-muted,#6b7280); font-size:18px; line-height:1;
+		border-radius:4px; transition:all .15s;
+	}
+	.jbwp-sidebar-add-btn:hover { color:var(--dwmcd-accent,#2952ff); background:var(--dwmcd-accent-soft,rgba(41,82,255,.08)); }
+	.jbwp-folder-item {
+		display:flex; align-items:center; padding:7px 14px;
+		cursor:pointer; transition:all .12s; gap:8px;
+		border-left:3px solid transparent; user-select:none;
+		position:relative;
+	}
+	.jbwp-folder-item:hover { background:var(--dwmcd-hover,#f5f8ff); }
+	.jbwp-folder-item.active {
+		background:var(--dwmcd-accent-soft,#eef2ff);
+		border-left-color:var(--dwmcd-accent,#2952ff); font-weight:600;
+	}
+	.jbwp-folder-item.drop-hover {
+		background:#dbeafe; border-left-color:#3b82f6;
+		box-shadow:inset 0 0 0 1px #93c5fd;
+	}
+	.jbwp-folder-icon {
+		font-size:16px; color:var(--dwmcd-sidebar-muted,#9ca3af);
+		flex-shrink:0; width:20px; text-align:center;
+	}
+	.jbwp-folder-item.active .jbwp-folder-icon { color:var(--dwmcd-accent,#2952ff); }
+	.jbwp-folder-name {
+		flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+		color:var(--dwmcd-sidebar-text,#35435d);
+	}
+	.jbwp-folder-count {
+		font-size:10px; color:var(--dwmcd-sidebar-muted,#9ca3af);
+		background:rgba(0,0,0,.04); padding:1px 7px; border-radius:10px;
+		min-width:20px; text-align:center; font-weight:500;
+		transition:all .2s;
+	}
+	.jbwp-folder-count.updated { background:var(--dwmcd-accent-soft,rgba(41,82,255,.1)); color:var(--dwmcd-accent,#2952ff); }
+	.jbwp-folder-actions {
+		opacity:0; display:flex; gap:1px; transition:opacity .15s;
+		position:absolute; right:8px; top:50%; transform:translateY(-50%);
+		background:var(--dwmcd-panel,#fff); border-radius:4px;
+		box-shadow:0 1px 3px rgba(0,0,0,.08); padding:1px;
+	}
+	.jbwp-folder-item:hover .jbwp-folder-actions { opacity:1; }
+	.jbwp-folder-actions button {
+		background:none; border:none; cursor:pointer; padding:3px 5px;
+		color:var(--dwmcd-sidebar-muted,#9ca3af); font-size:13px; line-height:1;
+		border-radius:3px; transition:all .12s;
+	}
+	.jbwp-folder-actions button:hover { color:var(--dwmcd-accent,#2952ff); background:var(--dwmcd-accent-soft,rgba(41,82,255,.08)); }
+	.jbwp-folder-actions .jbwp-delete:hover { color:#ef4444; background:rgba(239,68,68,.08); }
+	.jbwp-folder-sep { height:1px; background:var(--dwmcd-border,#e5e7eb); margin:6px 14px; }
+	/* Inline folder creation input */
+	.jbwp-folder-create-row {
+		display:flex; align-items:center; padding:4px 14px; gap:6px;
+	}
+	.jbwp-folder-create-input {
+		flex:1; border:1px solid #93c5fd; border-radius:6px; padding:5px 10px;
+		font-size:13px; outline:none; background:#fff;
+		box-shadow:0 0 0 2px rgba(59,130,246,.15);
+	}
+	.jbwp-folder-create-input:focus { border-color:var(--dwmcd-accent,#2952ff); box-shadow:0 0 0 2px rgba(41,82,255,.2); }
+	.jbwp-folder-create-actions { display:flex; gap:3px; }
+	.jbwp-folder-create-actions button {
+		border:none; cursor:pointer; padding:4px 6px; border-radius:4px;
+		font-size:14px; line-height:1;
+	}
+	.jbwp-create-ok { background:var(--dwmcd-accent,#2952ff); color:#fff; }
+	.jbwp-create-ok:hover { opacity:.85; }
+	.jbwp-create-cancel { background:#f3f4f6; color:#6b7280; }
+	.jbwp-create-cancel:hover { background:#e5e7eb; }
+	.jbwp-folder-rename-input {
+		border:1px solid #93c5fd; border-radius:5px; padding:3px 8px;
+		font-size:13px; width:100%; outline:none;
+		box-shadow:0 0 0 2px rgba(59,130,246,.15);
+	}
+	.jbwp-media-main { flex:1; min-width:0; }
+	/* Drag helper for grid attachments */
+	.jbwp-drag-helper {
+		background:var(--dwmcd-accent,#2952ff); color:#fff; padding:6px 14px;
+		border-radius:8px; font-size:12px; font-weight:600;
+		box-shadow:0 4px 16px rgba(0,0,0,.2); z-index:99999; white-space:nowrap;
+		display:flex; align-items:center; gap:6px;
+	}
+	.jbwp-drag-helper .dashicons { font-size:14px; width:14px; height:14px; }
+	/* Toast notification */
+	.jbwp-toast {
+		position:fixed; bottom:24px; right:24px; z-index:100001;
+		background:#1e293b; color:#fff; padding:10px 18px; border-radius:10px;
+		font-size:13px; font-weight:500; box-shadow:0 8px 24px rgba(0,0,0,.2);
+		opacity:0; transform:translateY(8px); transition:all .25s;
+	}
+	.jbwp-toast.show { opacity:1; transform:translateY(0); }
+	/* Loading overlay on sidebar items */
+	.jbwp-folder-item.loading::after {
+		content:''; position:absolute; inset:0; background:rgba(255,255,255,.5);
+		border-radius:0; pointer-events:none;
+	}
+	</style>
+
+	<script>
+	jQuery(function($){
+		'use strict';
+		var ajaxurl = '<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>';
+		var nonce   = '<?php echo esc_js( wp_create_nonce( 'dwmcd_nonce' ) ); ?>';
+		var folders = <?php echo wp_json_encode( $folders_data ); ?>;
+		var currentSlug = '<?php echo esc_js( $current ); ?>';
+		var totalCount  = <?php echo (int) $total_count; ?>;
+		var uncatCount  = <?php echo (int) $uncat_count; ?>;
+		var isGrid      = <?php echo $is_grid ? 'true' : 'false'; ?>;
+
+		var wrap = $('.wrap');
+		if (!wrap.length) return;
+
+		// ── Toast helper ────────────────────────────────────────────────
+		var toastTimer;
+		function toast(msg) {
+			var t = $('.jbwp-toast');
+			if (!t.length) { t = $('<div class="jbwp-toast"></div>').appendTo('body'); }
+			clearTimeout(toastTimer);
+			t.text(msg).addClass('show');
+			toastTimer = setTimeout(function(){ t.removeClass('show'); }, 2400);
+		}
+
+		// ── Build sidebar ───────────────────────────────────────────────
+		var sidebar = $('<div class="jbwp-media-sidebar"></div>');
+		sidebar.append(
+			'<div class="jbwp-sidebar-header">' +
+				'<h3>Mappen</h3>' +
+				'<button class="jbwp-sidebar-add-btn" title="Nieuwe map">+</button>' +
+			'</div>'
+		);
+
+		function esc(str) { return $('<span>').text(str).html(); }
+
+		function folderHtml(slug, name, count, id, icon) {
+			var active = slug === currentSlug ? ' active' : '';
+			icon = icon || (slug === '__uncategorized' ? 'portfolio' : 'category');
+			var h = '<div class="jbwp-folder-item'+active+'" data-slug="'+esc(slug)+'" data-id="'+(id||0)+'">';
+			h += '<span class="jbwp-folder-icon dashicons dashicons-'+icon+'"></span>';
+			h += '<span class="jbwp-folder-name">'+esc(name)+'</span>';
+			h += '<span class="jbwp-folder-count" data-slug="'+esc(slug)+'">'+count+'</span>';
+			if (id) {
+				h += '<span class="jbwp-folder-actions">';
+				h += '<button class="jbwp-rename" title="Hernoemen">&#9998;</button>';
+				h += '<button class="jbwp-delete" title="Verwijderen">&#10005;</button>';
+				h += '</span>';
+			}
+			h += '</div>';
+			return h;
+		}
+
+		// Built-in items
+		sidebar.append(folderHtml('', 'Alle media', totalCount, 0, 'images-alt2'));
+		sidebar.append(folderHtml('__uncategorized', 'Niet gecategoriseerd', uncatCount, 0, 'portfolio'));
+		sidebar.append('<div class="jbwp-folder-sep"></div>');
+		// User folders
+		$.each(folders, function(i,f) { sidebar.append(folderHtml(f.slug, f.name, f.count, f.id)); });
+
+		// Inject sidebar layout
+		var main = $('<div class="jbwp-media-main"></div>');
+		wrap.children().not('h1,.page-title-action,.subsubsub,.search-box').wrapAll(main);
+		main = wrap.find('.jbwp-media-main');
+		wrap.append($('<div class="jbwp-media-wrap"></div>').append(sidebar).append(main));
+
+		// ── Update sidebar counts from server data ──────────────────────
+		function updateCounts(data) {
+			if (!data) return;
+			// Total
+			sidebar.find('.jbwp-folder-count[data-slug=""]').text(data.total).addClass('updated');
+			// Uncategorized
+			sidebar.find('.jbwp-folder-count[data-slug="__uncategorized"]').text(data.uncategorized).addClass('updated');
+			// Per-folder
+			if (data.counts) {
+				$.each(data.counts, function(slug, cnt) {
+					sidebar.find('.jbwp-folder-count[data-slug="'+slug+'"]').text(cnt).addClass('updated');
+				});
+			}
+			setTimeout(function(){ sidebar.find('.jbwp-folder-count').removeClass('updated'); }, 1200);
+		}
+
+		// ── Click folder — real-time in grid, page nav in list ─────────
+		sidebar.on('click', '.jbwp-folder-item', function(e) {
+			if ($(e.target).closest('.jbwp-folder-actions').length) return;
+			if ($(e.target).is('input')) return;
+			var slug = $(this).data('slug');
+
+			// In grid mode, filter via wp.media backbone (no reload)
+			if (isGrid && window.wp && wp.media && wp.media.frame) {
+				sidebar.find('.jbwp-folder-item').removeClass('active');
+				$(this).addClass('active');
+				currentSlug = slug;
+				var props = wp.media.frame.content.get().collection.props;
+				if (slug) {
+					props.set({ media_category: slug });
+				} else {
+					props.unset('media_category');
+				}
+				// Update URL without reload
+				var url = new URL(window.location);
+				if (slug) { url.searchParams.set('media_category', slug); }
+				else { url.searchParams.delete('media_category'); }
+				window.history.replaceState({}, '', url.toString());
+				return;
+			}
+
+			// List view: navigate
+			var url = new URL(window.location);
+			if (slug) { url.searchParams.set('media_category', slug); }
+			else { url.searchParams.delete('media_category'); }
+			url.searchParams.delete('paged');
+			window.location = url.toString();
+		});
+
+		// ── Inline folder creation ──────────────────────────────────────
+		function showCreateInput() {
+			if (sidebar.find('.jbwp-folder-create-row').length) return;
+			var row = $(
+				'<div class="jbwp-folder-create-row">' +
+					'<input class="jbwp-folder-create-input" type="text" placeholder="Mapnaam…" maxlength="50">' +
+					'<div class="jbwp-folder-create-actions">' +
+						'<button class="jbwp-create-ok" title="Aanmaken">&#10003;</button>' +
+						'<button class="jbwp-create-cancel" title="Annuleren">&#10005;</button>' +
+					'</div>' +
+				'</div>'
+			);
+			sidebar.append(row);
+			var input = row.find('input');
+			input.focus();
+
+			function doCreate() {
+				var name = input.val().trim();
+				if (!name) { row.remove(); return; }
+				input.prop('disabled', true);
+				$.post(ajaxurl, { action:'jbwp_media_folder_create', nonce:nonce, name:name }, function(r) {
+					row.remove();
+					if (r.success) {
+						var f = r.data;
+						folders.push(f);
+						var last = sidebar.find('.jbwp-folder-item').last();
+						$(folderHtml(f.slug, f.name, 0, f.id)).insertAfter(last);
+						initDroppable();
+						toast('Map "'+f.name+'" aangemaakt');
+					} else {
+						toast(r.data && r.data.message ? r.data.message : 'Fout bij aanmaken');
+					}
+				}).fail(function(){ row.remove(); toast('Netwerkfout'); });
+			}
+
+			input.on('keydown', function(ev) {
+				if (ev.key === 'Enter') { ev.preventDefault(); doCreate(); }
+				if (ev.key === 'Escape') { row.remove(); }
+			});
+			row.find('.jbwp-create-ok').on('click', doCreate);
+			row.find('.jbwp-create-cancel').on('click', function(){ row.remove(); });
+		}
+
+		sidebar.on('click', '.jbwp-sidebar-add-btn', function(e) {
+			e.stopPropagation();
+			showCreateInput();
+		});
+
+		// ── Rename folder (inline) ──────────────────────────────────────
+		sidebar.on('click', '.jbwp-rename', function(e) {
+			e.stopPropagation();
+			var item = $(this).closest('.jbwp-folder-item');
+			var nameEl = item.find('.jbwp-folder-name');
+			var old = nameEl.text();
+			var input = $('<input class="jbwp-folder-rename-input" type="text" maxlength="50">').val(old);
+			nameEl.replaceWith(input);
+			input.focus().select();
+
+			function save() {
+				var val = input.val().trim();
+				if (!val) val = old;
+				if (val !== old) {
+					$.post(ajaxurl, { action:'jbwp_media_folder_rename', nonce:nonce, term_id:item.data('id'), name:val }, function(r) {
+						if (r.success) { toast('Map hernoemd'); }
+					});
+					// Update local folders array
+					$.each(folders, function(i,f) {
+						if (f.id == item.data('id')) { f.name = val; return false; }
+					});
+				}
+				input.replaceWith('<span class="jbwp-folder-name">'+esc(val)+'</span>');
+			}
+			input.on('blur', save).on('keydown', function(ev) {
+				if (ev.key === 'Enter') { ev.preventDefault(); input.off('blur'); save(); }
+				if (ev.key === 'Escape') { input.off('blur'); input.replaceWith('<span class="jbwp-folder-name">'+esc(old)+'</span>'); }
+			});
+		});
+
+		// ── Delete folder ───────────────────────────────────────────────
+		sidebar.on('click', '.jbwp-delete', function(e) {
+			e.stopPropagation();
+			var item = $(this).closest('.jbwp-folder-item');
+			var name = item.find('.jbwp-folder-name').text();
+			if (!confirm('Map "'+name+'" verwijderen?\nBestanden blijven behouden.')) return;
+			item.addClass('loading');
+			$.post(ajaxurl, { action:'jbwp_media_folder_delete', nonce:nonce, term_id:item.data('id') }, function(r) {
+				if (r.success) {
+					var slug = item.data('slug');
+					folders = folders.filter(function(f){ return f.slug !== slug; });
+					item.slideUp(200, function(){ item.remove(); });
+					toast('Map "'+name+'" verwijderd');
+					// If we deleted the active folder, show all
+					if (item.hasClass('active')) {
+						sidebar.find('.jbwp-folder-item').first().trigger('click');
+					}
+				}
+			}).fail(function(){ item.removeClass('loading'); });
+		});
+
+		// ── Drag-and-drop ───────────────────────────────────────────────
+		function initDraggable() {
+			var items = $('.attachments-browser .attachment, .wp-list-table .type-attachment');
+			if (!items.length) return;
+			items.not('.ui-draggable').draggable({
+				helper: function() {
+					var sel = $('.attachments-browser .attachment.selected');
+					var count = sel.length || 1;
+					return $('<div class="jbwp-drag-helper">')
+						.html('<span class="dashicons dashicons-move"></span> ' + count + ' bestand' + (count > 1 ? 'en' : ''));
+				},
+				appendTo: 'body',
+				cursor: 'grabbing',
+				distance: 8,
+				zIndex: 99999,
+				revert: 'invalid',
+				cursorAt: { left:24, top:14 },
+				start: function() { sidebar.find('.jbwp-folder-item[data-id]').addClass('drop-ready'); },
+				stop: function() { sidebar.find('.jbwp-folder-item').removeClass('drop-ready'); }
+			});
+		}
+
+		function initDroppable() {
+			sidebar.find('.jbwp-folder-item[data-id]').not('.ui-droppable').droppable({
+				hoverClass: 'drop-hover',
+				tolerance: 'pointer',
+				drop: function(event, ui) {
+					var termId = $(this).data('id');
+					var targetItem = $(this);
+					var ids = [];
+
+					var sel = $('.attachments-browser .attachment.selected');
+					if (sel.length) {
+						sel.each(function(){ ids.push($(this).data('id')); });
+					} else {
+						var id = ui.draggable.data('id');
+						if (id) ids.push(id);
+					}
+					if (!ids.length) return;
+
+					targetItem.addClass('loading');
+					$.post(ajaxurl, {
+						action: 'jbwp_media_folder_assign',
+						nonce: nonce,
+						attachment_ids: ids,
+						term_id: termId
+					}, function(r) {
+						targetItem.removeClass('loading');
+						if (r.success) {
+							updateCounts(r.data);
+							toast(ids.length + ' bestand' + (ids.length > 1 ? 'en' : '') + ' verplaatst');
+							// In grid mode, refresh the collection
+							if (isGrid && window.wp && wp.media && wp.media.frame) {
+								wp.media.frame.content.get().collection.props.set({ jbwp_refresh: Date.now() });
+								wp.media.frame.content.get().collection.props.unset('jbwp_refresh');
+							}
+						}
+					});
+				}
+			});
+
+			// Also make "Niet gecategoriseerd" droppable (removes all categories)
+			sidebar.find('.jbwp-folder-item[data-slug="__uncategorized"]').not('.ui-droppable').droppable({
+				hoverClass: 'drop-hover',
+				tolerance: 'pointer',
+				drop: function(event, ui) {
+					var targetItem = $(this);
+					var ids = [];
+					var sel = $('.attachments-browser .attachment.selected');
+					if (sel.length) {
+						sel.each(function(){ ids.push($(this).data('id')); });
+					} else {
+						var id = ui.draggable.data('id');
+						if (id) ids.push(id);
+					}
+					if (!ids.length) return;
+					targetItem.addClass('loading');
+					$.post(ajaxurl, {
+						action: 'jbwp_media_folder_assign',
+						nonce: nonce,
+						attachment_ids: ids,
+						term_id: 0
+					}, function(r) {
+						targetItem.removeClass('loading');
+						if (r.success) {
+							updateCounts(r.data);
+							toast(ids.length + ' bestand' + (ids.length > 1 ? 'en' : '') + ' uit map gehaald');
+							if (isGrid && window.wp && wp.media && wp.media.frame) {
+								wp.media.frame.content.get().collection.props.set({ jbwp_refresh: Date.now() });
+								wp.media.frame.content.get().collection.props.unset('jbwp_refresh');
+							}
+						}
+					});
+				}
+			});
+		}
+
+		// Init drag-drop after grid renders (async)
+		setTimeout(function(){ initDraggable(); initDroppable(); }, 500);
+		$(document).ajaxComplete(function(){ setTimeout(initDraggable, 300); });
+
+		// ── Grid view: inject folder filter into wp.media backbone ──────
+		if (window.wp && wp.media && wp.media.view && wp.media.view.AttachmentFilters) {
+			var cats = [{slug:'',name:'Alle mappen'},{slug:'__uncategorized',name:'Niet gecategoriseerd'}];
+			$.each(folders, function(i,f){ cats.push({slug:f.slug,name:f.name}); });
+			var OrigFilters = wp.media.view.AttachmentFilters.All;
+			wp.media.view.AttachmentFilters.All = OrigFilters.extend({
+				createFilters: function(){
+					OrigFilters.prototype.createFilters.call(this);
+					var self = this;
+					$.each(cats, function(i,c) {
+						if (!c.slug) return;
+						self.filters['media_category_'+c.slug] = {
+							text: c.name,
+							props: { media_category: c.slug },
+							priority: 60
+						};
+					});
+				}
+			});
+		}
+
+		// ── Apply initial filter if URL has media_category param ─────────
+		if (isGrid && currentSlug && window.wp && wp.media) {
+			wp.media.ready(function() {
+				setTimeout(function() {
+					if (wp.media.frame && wp.media.frame.content && wp.media.frame.content.get()) {
+						wp.media.frame.content.get().collection.props.set({ media_category: currentSlug });
+					}
+				}, 200);
+			});
+		}
+	});
+	</script>
+	<?php
+} );
 
 
 // ══════════════════════════════════════════════════════════════════════════════
