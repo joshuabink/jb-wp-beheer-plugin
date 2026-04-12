@@ -1,4 +1,4 @@
-/* JB WP Beheer Plugin — v4.2.0 */
+/* JB WP Beheer Plugin — v4.3.0 */
 
 /* global DWMCD, wp */
 window.DWMCD = window.DWMCD || { typeHints: {}, typePlaceholders: {}, noTargetTypes: [], ajaxurl: '', nonce: '' };
@@ -288,6 +288,44 @@ window.DWMCD = window.DWMCD || { typeHints: {}, typePlaceholders: {}, noTargetTy
     document.getElementById('dwmcd-icon-preview'),
     true
   );
+
+  // ── Login background uploader ─────────────────────────────────────────────
+
+  (function () {
+    var selectBtn = document.getElementById('dwmcd-login-bg-select');
+    var removeBtn = document.getElementById('dwmcd-login-bg-remove');
+    var idInput   = document.getElementById('dwmcd-login-bg-id');
+    var preview   = document.getElementById('dwmcd-login-bg-preview');
+    if (!selectBtn) return;
+
+    selectBtn.addEventListener('click', function () {
+      if (typeof wp === 'undefined' || !wp.media) return;
+      var frame = wp.media({
+        title:    'Achtergrondafbeelding kiezen',
+        button:   { text: 'Gebruiken als achtergrond' },
+        multiple: false,
+        library:  { type: 'image' },
+      });
+      frame.on('select', function () {
+        var att = frame.state().get('selection').first().toJSON();
+        idInput.value = att.id;
+        var url = (att.sizes && att.sizes.large) ? att.sizes.large.url : att.url;
+        preview.innerHTML = '<img src="' + url + '" alt="Login achtergrond" style="width:100%;height:100%;object-fit:cover">';
+        preview.classList.remove('dwmcd-logo-empty');
+        removeBtn.classList.remove('hidden');
+      });
+      frame.open();
+    });
+
+    if (removeBtn) {
+      removeBtn.addEventListener('click', function () {
+        idInput.value = '0';
+        preview.innerHTML = '<span class="dashicons dashicons-format-image"></span><span>Geen achtergrond geselecteerd</span>';
+        preview.classList.add('dwmcd-logo-empty');
+        removeBtn.classList.add('hidden');
+      });
+    }
+  })();
 
   // ── Color pickers ──────────────────────────────────────────────────────────
 

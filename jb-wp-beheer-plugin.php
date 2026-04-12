@@ -3,7 +3,7 @@
  * Plugin Name:       JB WP Beheer Plugin
  * Plugin URI:        https://github.com/joshuabink/jb-wp-beheer-plugin
  * Description:       Professioneel klantdashboard voor WordPress websites.
- * Version:           4.2.2
+ * Version:           4.3.0
  * Author:            Joshua Bink
  * Author URI:        https://github.com/joshuabink
  * License:           GPL-2.0-or-later
@@ -33,7 +33,7 @@ if ( defined( 'JBWP_PLUGIN_VERSION' ) ) {
 // ── Plugin identity ──────────────────────────────────────────────────────────
 // Public-facing identifiers (slug, version, paths). Keep in sync with the
 // header above so the auto-updater and WP plugin screens use the same values.
-define( 'JBWP_PLUGIN_VERSION', '4.2.2' );
+define( 'JBWP_PLUGIN_VERSION', '4.3.0' );
 define( 'JBWP_PLUGIN_SLUG',    'jb-wp-beheer-plugin' );
 define( 'JBWP_PLUGIN_FILE',    __FILE__ );
 define( 'JBWP_PLUGIN_DIR',     plugin_dir_path( __FILE__ ) );
@@ -101,6 +101,10 @@ function jbwp_defaults() {
 		'support_text'           => 'Neem contact op voor support of wijzigingen aan uw website.',
 		'support_button'         => 'Contact opnemen',
 		'support_url'            => '',
+		// Login pagina branding
+		'login_bg_id'            => 0,
+		'login_welcome_text'     => '',
+		'login_card_style'       => 1,
 		// Media & Gebruikers modules
 		'media_categories_enabled'  => 0,
 		'media_replacement_enabled' => 0,
@@ -1198,6 +1202,10 @@ function jbwp_sanitize_settings( $input ) {
 	$out['support_text']   = sanitize_textarea_field( $input['support_text'] ?? $d['support_text'] );
 	$out['support_button'] = sanitize_text_field( $input['support_button'] ?? $d['support_button'] );
 	$out['support_url']    = esc_url_raw( $input['support_url'] ?? '' );
+	// Login pagina branding
+	$out['login_bg_id']        = absint( $input['login_bg_id'] ?? 0 );
+	$out['login_welcome_text'] = sanitize_text_field( $input['login_welcome_text'] ?? '' );
+	$out['login_card_style']   = empty( $input['login_card_style'] ) ? 0 : 1;
 	// Media & Gebruikers modules
 	$out['media_categories_enabled']  = empty( $input['media_categories_enabled'] )  ? 0 : 1;
 	$out['media_replacement_enabled'] = empty( $input['media_replacement_enabled'] ) ? 0 : 1;
@@ -1768,6 +1776,47 @@ function jbwp_render_settings() {
 						</div>
 						<div style="margin-top:12px">
 							<button type="button" class="button button-secondary" id="dwmcd-reset-colors">Standaard kleuren herstellen</button>
+						</div>
+					</div>
+
+					<!-- Login pagina branding -->
+					<div class="dwmcd-card">
+						<h2>Login pagina</h2>
+						<p class="dwmcd-muted" style="margin-bottom:16px">Pas de WordPress login pagina aan met een achtergrondafbeelding, welkomsttekst en afgeronde kaart-stijl. De accentkleur wordt automatisch toegepast op de login-knop.</p>
+						<div class="dwmcd-switches" style="margin-bottom:14px">
+							<label><input type="checkbox" name="dwmcd_settings[login_card_style]" value="1" <?php checked( ! empty( $settings['login_card_style'] ) ); ?>> Moderne kaart-stijl login</label>
+						</div>
+						<div class="dwmcd-field" style="margin-bottom:16px">
+							<label>Welkomsttekst <span class="dwmcd-optional">(boven het formulier)</span></label>
+							<input type="text" name="dwmcd_settings[login_welcome_text]" value="<?php echo esc_attr( $settings['login_welcome_text'] ); ?>" placeholder="bijv. Welkom terug!" style="width:100%">
+						</div>
+						<div class="dwmcd-field">
+							<label>Achtergrondafbeelding</label>
+							<?php
+							$login_bg_url = '';
+							if ( ! empty( $settings['login_bg_id'] ) ) {
+								$login_bg_url = wp_get_attachment_image_url( (int) $settings['login_bg_id'], 'large' );
+							}
+							?>
+							<div class="dwmcd-logo-uploader">
+								<div class="dwmcd-logo-preview<?php echo $login_bg_url ? '' : ' dwmcd-logo-empty'; ?>" id="dwmcd-login-bg-preview" style="width:100%;max-width:400px;height:120px;border-radius:10px;overflow:hidden">
+									<?php if ( $login_bg_url ) : ?>
+										<img src="<?php echo esc_url( $login_bg_url ); ?>" alt="Login achtergrond" style="width:100%;height:100%;object-fit:cover">
+									<?php else : ?>
+										<span class="dashicons dashicons-format-image"></span>
+										<span>Geen achtergrond geselecteerd</span>
+									<?php endif; ?>
+								</div>
+								<div class="dwmcd-logo-actions" style="margin-top:8px">
+									<input type="hidden" name="dwmcd_settings[login_bg_id]" id="dwmcd-login-bg-id" value="<?php echo esc_attr( $settings['login_bg_id'] ); ?>">
+									<button type="button" class="button button-secondary" id="dwmcd-login-bg-select">
+										<span class="dashicons dashicons-upload"></span> Afbeelding kiezen
+									</button>
+									<button type="button" class="button-link-delete<?php echo empty( $settings['login_bg_id'] ) ? ' hidden' : ''; ?>" id="dwmcd-login-bg-remove">
+										Verwijderen
+									</button>
+								</div>
+							</div>
 						</div>
 					</div>
 
@@ -2626,30 +2675,141 @@ add_action( 'admin_bar_menu', function ( $bar ) {
 	}
 }, 11 );
 
-// ── Login pagina — icoon & favicon ────────────────────────────────────────────
+// ── Login pagina — branding ──────────────────────────────────────────────────
 
 add_action( 'login_head', function () {
 	$s = jbwp_get_settings();
-	if ( empty( $s['site_icon_id'] ) ) {
+
+	// Favicon
+	if ( ! empty( $s['site_icon_id'] ) ) {
+		jbwp_favicon_tags( (int) $s['site_icon_id'] );
+	}
+
+	// Gather branding data
+	$icon_url  = '';
+	$bg_url    = '';
+	$accent    = $s['accent_color'] ?? '#2952ff';
+	$card      = ! empty( $s['login_card_style'] );
+
+	if ( ! empty( $s['site_icon_id'] ) ) {
+		$icon_url = wp_get_attachment_image_url( (int) $s['site_icon_id'], array( 180, 180 ) );
+		if ( ! $icon_url ) {
+			$icon_url = wp_get_attachment_url( (int) $s['site_icon_id'] );
+		}
+	}
+	if ( ! empty( $s['login_bg_id'] ) ) {
+		$bg_url = wp_get_attachment_image_url( (int) $s['login_bg_id'], 'full' );
+		if ( ! $bg_url ) {
+			$bg_url = wp_get_attachment_url( (int) $s['login_bg_id'] );
+		}
+	}
+
+	// Nothing to customize? Exit.
+	if ( ! $icon_url && ! $bg_url && ! $card ) {
 		return;
 	}
-	$icon_id  = (int) $s['site_icon_id'];
-	$icon_url = wp_get_attachment_image_url( $icon_id, array( 180, 180 ) );
-	if ( ! $icon_url ) {
-		$icon_url = wp_get_attachment_url( $icon_id );
+
+	echo '<style>';
+
+	// Logo replacement
+	if ( $icon_url ) {
+		echo '.login h1 a{'
+			. 'background-image:url(' . esc_url( $icon_url ) . ') !important;'
+			. 'background-size:contain !important;'
+			. 'width:80px !important;'
+			. 'height:80px !important;'
+			. 'background-repeat:no-repeat !important;'
+			. 'background-position:center !important;'
+			. '}';
 	}
-	if ( ! $icon_url ) {
-		return;
+
+	// Background image
+	if ( $bg_url ) {
+		echo 'body.login{'
+			. 'background:url(' . esc_url( $bg_url ) . ') center/cover no-repeat fixed !important;'
+			. 'min-height:100vh;'
+			. '}'
+			. 'body.login::before{'
+			. 'content:"";position:fixed;inset:0;'
+			. 'background:rgba(0,0,0,.45);'
+			. 'z-index:0;'
+			. '}'
+			. 'body.login > *{position:relative;z-index:1;}';
 	}
-	jbwp_favicon_tags( $icon_id );
-	echo '<style>.login h1 a{'
-		. 'background-image:url(' . esc_url( $icon_url ) . ') !important;'
-		. 'background-size:contain !important;'
-		. 'width:80px !important;'
-		. 'height:80px !important;'
-		. 'background-repeat:no-repeat !important;'
-		. 'background-position:center !important;'
-		. '}</style>';
+
+	// Modern card style
+	if ( $card ) {
+		echo '#login{'
+			. 'background:#fff;'
+			. 'border-radius:16px;'
+			. 'padding:32px 28px 24px !important;'
+			. 'box-shadow:0 8px 40px rgba(0,0,0,.12);'
+			. 'margin-top:6vh;'
+			. 'max-width:380px;'
+			. 'width:90%;'
+			. '}'
+			. '#loginform{'
+			. 'border:none !important;'
+			. 'box-shadow:none !important;'
+			. 'padding:0 !important;'
+			. 'margin:0 !important;'
+			. 'background:transparent !important;'
+			. '}'
+			. '#loginform .input,#loginform input[type="text"],#loginform input[type="password"]{'
+			. 'border:1px solid #e2e8f0 !important;'
+			. 'border-radius:8px !important;'
+			. 'padding:8px 12px !important;'
+			. 'font-size:14px !important;'
+			. 'transition:border-color .2s !important;'
+			. '}'
+			. '#loginform .input:focus,#loginform input[type="text"]:focus,#loginform input[type="password"]:focus{'
+			. 'border-color:' . esc_attr( $accent ) . ' !important;'
+			. 'box-shadow:0 0 0 2px ' . esc_attr( $accent ) . '22 !important;'
+			. '}'
+			. '#login h1{margin-bottom:8px;}'
+			. '#login h1 a{margin-bottom:8px !important;}'
+			. '#nav,#backtoblog{text-align:center;padding:0 !important;}'
+			. '#nav a,#backtoblog a{color:#64748b !important;}'
+			. '#nav a:hover,#backtoblog a:hover{color:' . esc_attr( $accent ) . ' !important;}'
+			. '.login .message,.login .success,.login #login_error{'
+			. 'border-radius:8px !important;'
+			. 'border-left-width:4px !important;'
+			. 'margin-bottom:16px !important;'
+			. '}';
+	}
+
+	// Accent color on login button (always apply when set)
+	echo '#wp-submit,.wp-core-ui .button-primary{'
+		. 'background:' . esc_attr( $accent ) . ' !important;'
+		. 'border-color:' . esc_attr( $accent ) . ' !important;'
+		. 'border-radius:8px !important;'
+		. 'padding:6px 24px !important;'
+		. 'font-size:14px !important;'
+		. 'font-weight:600 !important;'
+		. 'height:auto !important;'
+		. 'line-height:1.5 !important;'
+		. 'transition:opacity .2s !important;'
+		. '}'
+		. '#wp-submit:hover,.wp-core-ui .button-primary:hover{'
+		. 'opacity:.85 !important;'
+		. '}'
+		. '#wp-submit:focus,.wp-core-ui .button-primary:focus{'
+		. 'box-shadow:0 0 0 2px #fff,0 0 0 4px ' . esc_attr( $accent ) . ' !important;'
+		. '}';
+
+	echo '</style>';
+} );
+
+// ── Login pagina — welkomsttekst ─────────────────────────────────────────────
+
+add_filter( 'login_message', function ( $message ) {
+	$s = jbwp_get_settings();
+	if ( empty( $s['login_welcome_text'] ) ) {
+		return $message;
+	}
+	$text = esc_html( $s['login_welcome_text'] );
+	return '<p style="text-align:center;font-size:16px;font-weight:500;color:#334155;margin:0 0 12px;line-height:1.4">'
+		. $text . '</p>' . $message;
 } );
 
 // ── Footer ────────────────────────────────────────────────────────────────────
