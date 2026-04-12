@@ -1,4 +1,4 @@
-/* JB WP Beheer Plugin — v4.3.0 */
+/* JB WP Beheer Plugin — v4.3.1 */
 
 /* ── CSS variabelen ───────────────────────────────────────────────────────── */
 :root {
@@ -589,6 +589,44 @@ body.folded #wpfooter { margin-left: 36px !important; }
 .dwmcd-card { padding: 26px; margin-bottom: 16px; }
 .dwmcd-card-header-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 20px; }
 .dwmcd-card-header-row h2 { margin: 0 0 4px; }
+
+/* ── Feature cards (Functies tab) ─────────────────────────────────────────── */
+.dwmcd-feature-card { padding: 20px 24px; transition: border-color .2s, box-shadow .2s; }
+.dwmcd-feature-card.dwmcd-feature-active { border-color: var(--dwmcd-accent); box-shadow: 0 0 0 1px var(--dwmcd-accent), var(--dwmcd-shadow); }
+.dwmcd-feature-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.dwmcd-feature-info { display: flex; align-items: flex-start; gap: 14px; flex: 1; min-width: 0; }
+.dwmcd-feature-icon {
+  flex-shrink: 0; width: 40px; height: 40px; font-size: 20px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--dwmcd-accent-soft); color: var(--dwmcd-accent);
+  border-radius: 10px; line-height: 40px;
+}
+.dwmcd-feature-title { margin: 0 0 2px; font-size: 15px; font-weight: 650; color: var(--dwmcd-text); }
+.dwmcd-feature-desc { margin: 0; font-size: 13px; color: var(--dwmcd-muted); line-height: 1.45; }
+.dwmcd-feature-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.dwmcd-feature-settings-btn { display: inline-flex; align-items: center; gap: 4px; }
+.dwmcd-feature-settings-btn .dashicons { font-size: 14px; width: 14px; height: 14px; }
+/* Toggle slider */
+.dwmcd-toggle { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+.dwmcd-toggle input { opacity: 0; width: 0; height: 0; }
+.dwmcd-toggle-slider {
+  position: absolute; inset: 0; cursor: pointer;
+  background: #d1d5db; border-radius: 24px; transition: background .2s;
+}
+.dwmcd-toggle-slider::before {
+  content: ''; position: absolute;
+  width: 18px; height: 18px; left: 3px; bottom: 3px;
+  background: #fff; border-radius: 50%; transition: transform .2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,.15);
+}
+.dwmcd-toggle input:checked + .dwmcd-toggle-slider { background: var(--dwmcd-accent); }
+.dwmcd-toggle input:checked + .dwmcd-toggle-slider::before { transform: translateX(20px); }
+/* Expandable settings panel */
+.dwmcd-feature-settings {
+  margin-top: 16px; padding-top: 16px;
+  border-top: 1px solid var(--dwmcd-border);
+}
+.dwmcd-feature-settings-inner { max-width: 600px; }
 
 /* ── Info box ─────────────────────────────────────────────────────────────── */
 .dwmcd-info-box {

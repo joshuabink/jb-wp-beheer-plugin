@@ -3,7 +3,7 @@
  * Plugin Name:       JB WP Beheer Plugin
  * Plugin URI:        https://github.com/joshuabink/jb-wp-beheer-plugin
  * Description:       Professioneel klantdashboard voor WordPress websites.
- * Version:           4.3.0
+ * Version:           4.3.1
  * Author:            Joshua Bink
  * Author URI:        https://github.com/joshuabink
  * License:           GPL-2.0-or-later
@@ -33,7 +33,7 @@ if ( defined( 'JBWP_PLUGIN_VERSION' ) ) {
 // ── Plugin identity ──────────────────────────────────────────────────────────
 // Public-facing identifiers (slug, version, paths). Keep in sync with the
 // header above so the auto-updater and WP plugin screens use the same values.
-define( 'JBWP_PLUGIN_VERSION', '4.3.0' );
+define( 'JBWP_PLUGIN_VERSION', '4.3.1' );
 define( 'JBWP_PLUGIN_SLUG',    'jb-wp-beheer-plugin' );
 define( 'JBWP_PLUGIN_FILE',    __FILE__ );
 define( 'JBWP_PLUGIN_DIR',     plugin_dir_path( __FILE__ ) );
@@ -1684,7 +1684,7 @@ function jbwp_render_settings() {
 				<button type="button" class="dwmcd-tab-btn" data-tab="menu" role="tab" aria-selected="false" aria-controls="dwmcd-panel-menu" id="dwmcd-tab-menu"><span class="dashicons dashicons-menu"></span> Menu</button>
 				<button type="button" class="dwmcd-tab-btn" data-tab="analytics" role="tab" aria-selected="false" aria-controls="dwmcd-panel-analytics" id="dwmcd-tab-analytics"><span class="dashicons dashicons-chart-area"></span> Analytics</button>
 				<button type="button" class="dwmcd-tab-btn" data-tab="webshop" role="tab" aria-selected="false" aria-controls="dwmcd-panel-webshop" id="dwmcd-tab-webshop"><span class="dashicons dashicons-cart"></span> Webshop</button>
-				<button type="button" class="dwmcd-tab-btn" data-tab="media" role="tab" aria-selected="false" aria-controls="dwmcd-panel-media" id="dwmcd-tab-media"><span class="dashicons dashicons-format-gallery"></span> Media</button>
+				<button type="button" class="dwmcd-tab-btn" data-tab="media" role="tab" aria-selected="false" aria-controls="dwmcd-panel-media" id="dwmcd-tab-media"><span class="dashicons dashicons-plugins-checked"></span> Functies</button>
 				<button type="button" class="dwmcd-tab-btn" data-tab="settings" role="tab" aria-selected="false" aria-controls="dwmcd-panel-settings" id="dwmcd-tab-settings"><span class="dashicons dashicons-admin-settings"></span> Instellingen</button>
 				<button type="button" class="dwmcd-tab-btn" data-tab="access" role="tab" aria-selected="false" aria-controls="dwmcd-panel-access" id="dwmcd-tab-access"><span class="dashicons dashicons-admin-users"></span> Toegang</button>
 			</div>
@@ -1776,47 +1776,6 @@ function jbwp_render_settings() {
 						</div>
 						<div style="margin-top:12px">
 							<button type="button" class="button button-secondary" id="dwmcd-reset-colors">Standaard kleuren herstellen</button>
-						</div>
-					</div>
-
-					<!-- Login pagina branding -->
-					<div class="dwmcd-card">
-						<h2>Login pagina</h2>
-						<p class="dwmcd-muted" style="margin-bottom:16px">Pas de WordPress login pagina aan met een achtergrondafbeelding, welkomsttekst en afgeronde kaart-stijl. De accentkleur wordt automatisch toegepast op de login-knop.</p>
-						<div class="dwmcd-switches" style="margin-bottom:14px">
-							<label><input type="checkbox" name="dwmcd_settings[login_card_style]" value="1" <?php checked( ! empty( $settings['login_card_style'] ) ); ?>> Moderne kaart-stijl login</label>
-						</div>
-						<div class="dwmcd-field" style="margin-bottom:16px">
-							<label>Welkomsttekst <span class="dwmcd-optional">(boven het formulier)</span></label>
-							<input type="text" name="dwmcd_settings[login_welcome_text]" value="<?php echo esc_attr( $settings['login_welcome_text'] ); ?>" placeholder="bijv. Welkom terug!" style="width:100%">
-						</div>
-						<div class="dwmcd-field">
-							<label>Achtergrondafbeelding</label>
-							<?php
-							$login_bg_url = '';
-							if ( ! empty( $settings['login_bg_id'] ) ) {
-								$login_bg_url = wp_get_attachment_image_url( (int) $settings['login_bg_id'], 'large' );
-							}
-							?>
-							<div class="dwmcd-logo-uploader">
-								<div class="dwmcd-logo-preview<?php echo $login_bg_url ? '' : ' dwmcd-logo-empty'; ?>" id="dwmcd-login-bg-preview" style="width:100%;max-width:400px;height:120px;border-radius:10px;overflow:hidden">
-									<?php if ( $login_bg_url ) : ?>
-										<img src="<?php echo esc_url( $login_bg_url ); ?>" alt="Login achtergrond" style="width:100%;height:100%;object-fit:cover">
-									<?php else : ?>
-										<span class="dashicons dashicons-format-image"></span>
-										<span>Geen achtergrond geselecteerd</span>
-									<?php endif; ?>
-								</div>
-								<div class="dwmcd-logo-actions" style="margin-top:8px">
-									<input type="hidden" name="dwmcd_settings[login_bg_id]" id="dwmcd-login-bg-id" value="<?php echo esc_attr( $settings['login_bg_id'] ); ?>">
-									<button type="button" class="button button-secondary" id="dwmcd-login-bg-select">
-										<span class="dashicons dashicons-upload"></span> Afbeelding kiezen
-									</button>
-									<button type="button" class="button-link-delete<?php echo empty( $settings['login_bg_id'] ) ? ' hidden' : ''; ?>" id="dwmcd-login-bg-remove">
-										Verwijderen
-									</button>
-								</div>
-							</div>
 						</div>
 					</div>
 
@@ -2001,9 +1960,12 @@ function jbwp_render_settings() {
 							</div>
 						</div><!-- /groups-area -->
 
-						<div style="margin-top:16px">
+						<div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
 							<button type="button" class="button button-secondary" id="dwmcd-add-group">
 								<span class="dashicons dashicons-plus-alt2"></span> Nieuwe groep toevoegen
+							</button>
+							<button type="button" class="button button-secondary" id="dwmcd-ai-sort" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border-color:#6366f1">
+								<span class="dashicons dashicons-admin-generic" style="font-size:14px;width:14px;height:14px;margin-top:3px"></span> AI sorteren
 							</button>
 						</div>
 
@@ -2101,31 +2063,106 @@ function jbwp_render_settings() {
 				<!-- ══ TAB: MEDIA & GEBRUIKERS ═══════════════════════════════ -->
 				<div data-tab-panel="media" class="hidden" role="tabpanel" id="dwmcd-panel-media" aria-labelledby="dwmcd-tab-media">
 
-					<div class="dwmcd-card">
-						<h2>Media Categories</h2>
-						<p class="dwmcd-muted" style="margin-bottom:14px">Voeg categorieën toe aan de mediabibliotheek voor betere organisatie. Categoriseer bestanden via drag-and-drop en filter op categorie bij het invoegen van media.</p>
-						<div class="dwmcd-switches">
-							<label><input type="checkbox" name="dwmcd_settings[media_categories_enabled]" value="1" <?php checked( ! empty( $settings['media_categories_enabled'] ) ); ?>> Media Categories inschakelen</label>
-						</div>
-					</div>
+					<p class="dwmcd-muted" style="margin-bottom:20px">Schakel extra functies in of uit. Elke functie werkt onafhankelijk — activeer alleen wat je nodig hebt.</p>
 
-					<div class="dwmcd-card">
-						<h2>Media Replacement</h2>
-						<p class="dwmcd-muted" style="margin-bottom:14px">Vervang eenvoudig elk mediabestand met een nieuw bestand. Het behoudt de bestaande media-ID, publicatiedatum en alle koppelingen — zo breken er geen links.</p>
-						<div class="dwmcd-switches">
-							<label><input type="checkbox" name="dwmcd_settings[media_replacement_enabled]" value="1" <?php checked( ! empty( $settings['media_replacement_enabled'] ) ); ?>> Media Replacement inschakelen</label>
+					<?php
+					$features = array(
+						array(
+							'key'         => 'media_categories_enabled',
+							'icon'        => 'category',
+							'title'       => 'Mediamappen',
+							'description' => 'Organiseer de mediabibliotheek met mappen. Sidebar met drag-and-drop, inline folder beheer en filters.',
+							'settings'    => false,
+						),
+						array(
+							'key'         => 'media_replacement_enabled',
+							'icon'        => 'update',
+							'title'       => 'Media Replacement',
+							'description' => 'Vervang mediabestanden met behoud van de ID, URL en alle koppelingen.',
+							'settings'    => false,
+						),
+						array(
+							'key'         => 'local_avatar_enabled',
+							'icon'        => 'admin-users',
+							'title'       => 'Lokale Avatar',
+							'description' => 'Gebruik een afbeelding uit de mediabibliotheek als profielfoto — geen Gravatar nodig.',
+							'settings'    => false,
+						),
+						array(
+							'key'         => 'login_card_style',
+							'icon'        => 'lock',
+							'title'       => 'Custom Login Page',
+							'description' => 'Pas de WordPress login pagina aan met achtergrondafbeelding, welkomsttekst en huisstijl-kleuren.',
+							'settings'    => 'login',
+						),
+					);
+					foreach ( $features as $f ) :
+						$enabled = ! empty( $settings[ $f['key'] ] );
+					?>
+					<div class="dwmcd-card dwmcd-feature-card<?php echo $enabled ? ' dwmcd-feature-active' : ''; ?>">
+						<div class="dwmcd-feature-header">
+							<div class="dwmcd-feature-info">
+								<span class="dashicons dashicons-<?php echo esc_attr( $f['icon'] ); ?> dwmcd-feature-icon"></span>
+								<div>
+									<h3 class="dwmcd-feature-title"><?php echo esc_html( $f['title'] ); ?></h3>
+									<p class="dwmcd-feature-desc"><?php echo esc_html( $f['description'] ); ?></p>
+								</div>
+							</div>
+							<div class="dwmcd-feature-actions">
+								<?php if ( $f['settings'] ) : ?>
+									<button type="button" class="button button-small dwmcd-feature-settings-btn" data-target="dwmcd-feature-settings-<?php echo esc_attr( $f['settings'] ); ?>" title="Instellingen" <?php echo $enabled ? '' : 'style="display:none"'; ?>>
+										<span class="dashicons dashicons-admin-generic"></span> Instellingen
+									</button>
+								<?php endif; ?>
+								<label class="dwmcd-toggle">
+									<input type="checkbox" name="dwmcd_settings[<?php echo esc_attr( $f['key'] ); ?>]" value="1" <?php checked( $enabled ); ?> class="dwmcd-feature-toggle" data-settings="<?php echo $f['settings'] ? 'dwmcd-feature-settings-' . esc_attr( $f['settings'] ) : ''; ?>">
+									<span class="dwmcd-toggle-slider"></span>
+								</label>
+							</div>
 						</div>
-					</div>
-
-					<div class="dwmcd-card">
-						<h2>Local User Avatar</h2>
-						<p class="dwmcd-muted" style="margin-bottom:14px">Gebruik elke afbeelding uit de WordPress Mediabibliotheek als gebruikersavatar — geen externe diensten zoals Gravatar nodig.</p>
-						<div class="dwmcd-switches">
-							<label><input type="checkbox" name="dwmcd_settings[local_avatar_enabled]" value="1" <?php checked( ! empty( $settings['local_avatar_enabled'] ) ); ?>> Local User Avatar inschakelen</label>
+						<?php if ( 'login' === $f['settings'] ) : ?>
+						<div class="dwmcd-feature-settings" id="dwmcd-feature-settings-login" style="display:<?php echo $enabled ? 'block' : 'none'; ?>">
+							<div class="dwmcd-feature-settings-inner">
+								<div class="dwmcd-field" style="margin-bottom:14px">
+									<label>Welkomsttekst <span class="dwmcd-optional">(boven het formulier)</span></label>
+									<input type="text" name="dwmcd_settings[login_welcome_text]" value="<?php echo esc_attr( $settings['login_welcome_text'] ); ?>" placeholder="bijv. Welkom terug!" style="width:100%">
+								</div>
+								<div class="dwmcd-field">
+									<label>Achtergrondafbeelding</label>
+									<?php
+									$login_bg_url = '';
+									if ( ! empty( $settings['login_bg_id'] ) ) {
+										$login_bg_url = wp_get_attachment_image_url( (int) $settings['login_bg_id'], 'large' );
+									}
+									?>
+									<div class="dwmcd-logo-uploader">
+										<div class="dwmcd-logo-preview<?php echo $login_bg_url ? '' : ' dwmcd-logo-empty'; ?>" id="dwmcd-login-bg-preview" style="width:100%;max-width:400px;height:120px;border-radius:10px;overflow:hidden">
+											<?php if ( $login_bg_url ) : ?>
+												<img src="<?php echo esc_url( $login_bg_url ); ?>" alt="Login achtergrond" style="width:100%;height:100%;object-fit:cover">
+											<?php else : ?>
+												<span class="dashicons dashicons-format-image"></span>
+												<span>Geen achtergrond geselecteerd</span>
+											<?php endif; ?>
+										</div>
+										<div class="dwmcd-logo-actions" style="margin-top:8px">
+											<input type="hidden" name="dwmcd_settings[login_bg_id]" id="dwmcd-login-bg-id" value="<?php echo esc_attr( $settings['login_bg_id'] ); ?>">
+											<button type="button" class="button button-secondary" id="dwmcd-login-bg-select">
+												<span class="dashicons dashicons-upload"></span> Afbeelding kiezen
+											</button>
+											<button type="button" class="button-link-delete<?php echo empty( $settings['login_bg_id'] ) ? ' hidden' : ''; ?>" id="dwmcd-login-bg-remove">
+												Verwijderen
+											</button>
+										</div>
+									</div>
+								</div>
+								<p class="dwmcd-muted" style="margin-top:12px;font-size:12px">De <strong>accentkleur</strong> en het <strong>site-icoon</strong> uit het Dashboard-tabblad worden automatisch meegenomen op de login pagina.</p>
+							</div>
 						</div>
+						<?php endif; ?>
 					</div>
+					<?php endforeach; ?>
 
-				</div><!-- /media panel -->
+				</div><!-- /functies panel -->
 
 				<div data-tab-panel="settings" class="hidden" role="tabpanel" id="dwmcd-panel-settings" aria-labelledby="dwmcd-tab-settings">
 
@@ -3212,6 +3249,52 @@ add_action( 'wp_ajax_jbwp_media_folder_assign', function () {
 	) );
 	$uncat = $uncat_q->found_posts;
 	wp_send_json_success( array( 'counts' => $counts, 'total' => $total, 'uncategorized' => (int) $uncat ) );
+} );
+
+// ── Inject folder filter into wp.media modal on ALL admin pages ─────────────
+// This makes the folder dropdown appear when selecting images anywhere in WP
+// (e.g. Elementor, page editor, plugin settings, etc.)
+
+add_action( 'admin_footer', function () {
+	$s = jbwp_get_settings();
+	if ( empty( $s['media_categories_enabled'] ) || ! taxonomy_exists( 'media_category' ) ) {
+		return;
+	}
+	// Don't load on upload.php — the sidebar script there already handles this.
+	global $pagenow;
+	if ( 'upload.php' === $pagenow ) {
+		return;
+	}
+	$terms = get_terms( array( 'taxonomy' => 'media_category', 'hide_empty' => false ) );
+	if ( is_wp_error( $terms ) || empty( $terms ) ) {
+		return;
+	}
+	$folders = array();
+	foreach ( $terms as $t ) {
+		$folders[] = array( 'slug' => $t->slug, 'name' => $t->name );
+	}
+	?>
+	<script>
+	jQuery(function($){
+		if (!window.wp || !wp.media || !wp.media.view || !wp.media.view.AttachmentFilters) return;
+		var cats = <?php echo wp_json_encode( $folders ); ?>;
+		var Orig = wp.media.view.AttachmentFilters.All;
+		wp.media.view.AttachmentFilters.All = Orig.extend({
+			createFilters: function(){
+				Orig.prototype.createFilters.call(this);
+				var f = this.filters;
+				cats.forEach(function(c){
+					f['media_category_'+c.slug] = {
+						text: c.name,
+						props: { media_category: c.slug },
+						priority: 60
+					};
+				});
+			}
+		});
+	});
+	</script>
+	<?php
 } );
 
 // ── Enqueue jQuery UI for drag-and-drop on media page ──────────────────────

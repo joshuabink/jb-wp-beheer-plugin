@@ -1,4 +1,4 @@
-/* JB WP Beheer Plugin — v4.3.0 */
+/* JB WP Beheer Plugin — v4.3.1 */
 
 /* global DWMCD, wp */
 window.DWMCD = window.DWMCD || { typeHints: {}, typePlaceholders: {}, noTargetTypes: [], ajaxurl: '', nonce: '' };
@@ -724,6 +724,93 @@ window.DWMCD = window.DWMCD || { typeHints: {}, typePlaceholders: {}, noTargetTy
     });
   }
 
+  // AI auto-sort: organizes menu items into logical groups
+  var aiSortBtn = document.getElementById('dwmcd-ai-sort');
+  if (aiSortBtn && groupsArea) {
+    aiSortBtn.addEventListener('click', function () {
+      if (!confirm('AI sorteren past je menu automatisch aan in logische groepen. Doorgaan?')) return;
+
+      // Slug-to-group mapping (covers WP core + popular plugins)
+      var groupMap = {
+        'Inhoud': ['edit.php', 'edit.php?post_type=page', 'edit.php?post_type=elementor_library', 'upload.php', 'edit-comments.php'],
+        'Webshop': ['woocommerce', 'edit.php?post_type=product', 'edit.php?post_type=shop_order', 'wc-admin&path=/analytics/overview'],
+        'Marketing': ['mailpoet-newsletters', 'edit.php?post_type=newsletter', 'wpseo_dashboard', 'rank-math', 'aioseo'],
+        'Weergave': ['themes.php', 'widgets.php', 'nav-menus.php', 'customize.php', 'elementor'],
+        'Beheer': ['plugins.php', 'users.php', 'tools.php', 'options-general.php', 'admin.php?page=dwmcd-settings']
+      };
+
+      // Collect all chips from all groups
+      var allChips = groupsArea.querySelectorAll('.dwmcd-menu-chip');
+      if (!allChips.length) return;
+
+      // Remove all existing user groups (keep ungrouped bucket)
+      var existingGroups = groupsArea.querySelectorAll('.dwmcd-menu-group:not(.dwmcd-group-ungrouped)');
+      existingGroups.forEach(function (g) { g.remove(); });
+
+      // Create new groups and sort chips
+      var ungroupedZone = groupsArea.querySelector('.dwmcd-group-ungrouped .dwmcd-group-items');
+      var assigned = {};
+
+      // First, move all chips to ungrouped
+      allChips.forEach(function (chip) {
+        var placeholder = ungroupedZone.querySelector('.dwmcd-drop-placeholder');
+        if (placeholder) ungroupedZone.insertBefore(chip, placeholder);
+        else ungroupedZone.appendChild(chip);
+      });
+
+      // Create groups and move matching chips
+      var ungroupedBucket = groupsArea.querySelector('.dwmcd-group-ungrouped');
+      Object.keys(groupMap).forEach(function (groupName) {
+        var slugs = groupMap[groupName];
+        var matchedChips = [];
+
+        slugs.forEach(function (slug) {
+          var chip = ungroupedZone.querySelector('.dwmcd-menu-chip[data-slug="' + slug + '"]');
+          if (chip) matchedChips.push(chip);
+        });
+
+        // Also match partial slugs (e.g. "edit.php?post_type=product" matches "product")
+        ungroupedZone.querySelectorAll('.dwmcd-menu-chip').forEach(function (chip) {
+          if (matchedChips.indexOf(chip) !== -1) return;
+          var chipSlug = chip.dataset.slug || '';
+          slugs.forEach(function (slug) {
+            if (chipSlug.indexOf(slug) !== -1 || slug.indexOf(chipSlug) !== -1) {
+              matchedChips.push(chip);
+            }
+          });
+        });
+
+        if (!matchedChips.length) return;
+
+        var gid = 'g' + (++groupCounter);
+        var newGroup = createGroup(gid, groupName);
+        groupsArea.insertBefore(newGroup, ungroupedBucket);
+        var itemsZone = newGroup.querySelector('.dwmcd-group-items');
+
+        matchedChips.forEach(function (chip) {
+          var placeholder = itemsZone.querySelector('.dwmcd-drop-placeholder');
+          if (placeholder) itemsZone.insertBefore(chip, placeholder);
+          else itemsZone.appendChild(chip);
+        });
+      });
+
+      // Re-bind event listeners for new groups
+      groupsArea.querySelectorAll('.dwmcd-menu-chip').forEach(function (chip) {
+        bindChipVisibility(chip);
+      });
+
+      syncMenuData();
+
+      // Flash effect on the button
+      aiSortBtn.textContent = 'Gesorteerd!';
+      aiSortBtn.disabled = true;
+      setTimeout(function () {
+        aiSortBtn.innerHTML = '<span class="dashicons dashicons-admin-generic" style="font-size:14px;width:14px;height:14px;margin-top:3px"></span> AI sorteren';
+        aiSortBtn.disabled = false;
+      }, 1500);
+    });
+  }
+
   // Menu reset
   if (menuReset && menuFlag) {
     menuReset.addEventListener('click', function () {
@@ -830,5 +917,43 @@ window.DWMCD = window.DWMCD || { typeHints: {}, typePlaceholders: {}, noTargetTy
         });
     });
   }
+
+  // ── Feature toggle + settings expand ──────────────────────────────────────
+
+  document.querySelectorAll('.dwmcd-feature-toggle').forEach(function (toggle) {
+    toggle.addEventListener('change', function () {
+      var card = this.closest('.dwmcd-feature-card');
+      var settingsId = this.getAttribute('data-settings');
+      if (this.checked) {
+        card.classList.add('dwmcd-feature-active');
+        if (settingsId) {
+          var settingsEl = document.getElementById(settingsId);
+          if (settingsEl) settingsEl.style.display = 'block';
+          var btn = card.querySelector('.dwmcd-feature-settings-btn');
+          if (btn) btn.style.display = '';
+        }
+      } else {
+        card.classList.remove('dwmcd-feature-active');
+        if (settingsId) {
+          var settingsEl = document.getElementById(settingsId);
+          if (settingsEl) settingsEl.style.display = 'none';
+          var btn = card.querySelector('.dwmcd-feature-settings-btn');
+          if (btn) btn.style.display = 'none';
+        }
+      }
+    });
+  });
+
+  document.querySelectorAll('.dwmcd-feature-settings-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var target = document.getElementById(this.getAttribute('data-target'));
+      if (!target) return;
+      if (target.style.display === 'none') {
+        target.style.display = 'block';
+      } else {
+        target.style.display = 'none';
+      }
+    });
+  });
 
 })();
