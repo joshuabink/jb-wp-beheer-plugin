@@ -172,6 +172,22 @@ body.wp-admin { background: var(--dwmcd-bg); color: var(--dwmcd-text); }
   object-fit: contain !important;
   opacity: 1 !important;
 }
+/* Background-image icons (Elementor, Rank Math, MonsterInsights, etc.)
+   These plugins set background-image on .wp-menu-image (often with class .svg).
+   We must guarantee dimensions + positioning because our padding:0 + height:auto
+   overrides remove the space WP normally provides for these icons. */
+#adminmenu .wp-menu-image.svg,
+#adminmenu .wp-menu-image[style*="background-image"] {
+  background-size: 20px auto !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  min-height: 36px !important;
+}
+/* Hide the empty ::before pseudo that dashicons-before generates when
+   only a background-image icon is used — prevents ghost space in flex. */
+#adminmenu .wp-menu-image.svg:before {
+  display: none !important;
+}
 /* Tekst-label */
 #adminmenu .wp-menu-name {
   padding: 0 6px 0 0 !important;

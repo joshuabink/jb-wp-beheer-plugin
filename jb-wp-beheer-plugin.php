@@ -3,7 +3,7 @@
  * Plugin Name:       JB WP Beheer Plugin
  * Plugin URI:        https://github.com/joshuabink/jb-wp-beheer-plugin
  * Description:       Professioneel klantdashboard voor WordPress websites.
- * Version:           4.3.1
+ * Version:           4.4.0
  * Author:            Joshua Bink
  * Author URI:        https://github.com/joshuabink
  * License:           GPL-2.0-or-later
@@ -33,7 +33,7 @@ if ( defined( 'JBWP_PLUGIN_VERSION' ) ) {
 // ── Plugin identity ──────────────────────────────────────────────────────────
 // Public-facing identifiers (slug, version, paths). Keep in sync with the
 // header above so the auto-updater and WP plugin screens use the same values.
-define( 'JBWP_PLUGIN_VERSION', '4.3.1' );
+define( 'JBWP_PLUGIN_VERSION', '4.4.0' );
 define( 'JBWP_PLUGIN_SLUG',    'jb-wp-beheer-plugin' );
 define( 'JBWP_PLUGIN_FILE',    __FILE__ );
 define( 'JBWP_PLUGIN_DIR',     plugin_dir_path( __FILE__ ) );
@@ -105,6 +105,24 @@ function jbwp_defaults() {
 		'login_bg_id'            => 0,
 		'login_welcome_text'     => '',
 		'login_card_style'       => 1,
+		// Password Protection
+		'password_protection_enabled'    => 0,
+		'password_protection_password'   => '',
+		'password_protection_ip_whitelist' => '',
+		'password_protection_ip_header'  => '',
+		'password_protection_bypass_key' => '',
+		'password_protection_message'    => 'Deze website is beveiligd met een wachtwoord.',
+		// Maintenance Mode
+		'maintenance_mode_enabled'       => 0,
+		'maintenance_title'              => 'Onderhoud',
+		'maintenance_heading'            => 'We zijn zo terug',
+		'maintenance_description'        => 'Deze website wordt momenteel bijgewerkt. Probeer het later opnieuw.',
+		'maintenance_bg_type'            => 'color',
+		'maintenance_bg_color'           => '#0f172a',
+		'maintenance_bg_id'              => 0,
+		'maintenance_custom_css'         => '',
+		'maintenance_use_page'           => 0,
+		'maintenance_page_id'            => 0,
 		// Media & Gebruikers modules
 		'media_categories_enabled'  => 0,
 		'media_replacement_enabled' => 0,
@@ -1206,6 +1224,24 @@ function jbwp_sanitize_settings( $input ) {
 	$out['login_bg_id']        = absint( $input['login_bg_id'] ?? 0 );
 	$out['login_welcome_text'] = sanitize_text_field( $input['login_welcome_text'] ?? '' );
 	$out['login_card_style']   = empty( $input['login_card_style'] ) ? 0 : 1;
+	// Password Protection
+	$out['password_protection_enabled']      = empty( $input['password_protection_enabled'] ) ? 0 : 1;
+	$out['password_protection_password']     = sanitize_text_field( $input['password_protection_password'] ?? '' );
+	$out['password_protection_ip_whitelist'] = sanitize_textarea_field( $input['password_protection_ip_whitelist'] ?? '' );
+	$out['password_protection_ip_header']    = sanitize_text_field( $input['password_protection_ip_header'] ?? '' );
+	$out['password_protection_bypass_key']   = sanitize_text_field( $input['password_protection_bypass_key'] ?? '' );
+	$out['password_protection_message']      = sanitize_text_field( $input['password_protection_message'] ?? $d['password_protection_message'] );
+	// Maintenance Mode
+	$out['maintenance_mode_enabled']     = empty( $input['maintenance_mode_enabled'] ) ? 0 : 1;
+	$out['maintenance_title']            = sanitize_text_field( $input['maintenance_title'] ?? $d['maintenance_title'] );
+	$out['maintenance_heading']          = sanitize_text_field( $input['maintenance_heading'] ?? $d['maintenance_heading'] );
+	$out['maintenance_description']      = wp_kses_post( $input['maintenance_description'] ?? $d['maintenance_description'] );
+	$out['maintenance_bg_type']          = in_array( ( $input['maintenance_bg_type'] ?? 'color' ), array( 'color', 'image' ), true ) ? $input['maintenance_bg_type'] : 'color';
+	$out['maintenance_bg_color']         = sanitize_hex_color( $input['maintenance_bg_color'] ?? '#0f172a' ) ?: '#0f172a';
+	$out['maintenance_bg_id']            = absint( $input['maintenance_bg_id'] ?? 0 );
+	$out['maintenance_custom_css']       = wp_strip_all_tags( $input['maintenance_custom_css'] ?? '' );
+	$out['maintenance_use_page']         = empty( $input['maintenance_use_page'] ) ? 0 : 1;
+	$out['maintenance_page_id']          = absint( $input['maintenance_page_id'] ?? 0 );
 	// Media & Gebruikers modules
 	$out['media_categories_enabled']  = empty( $input['media_categories_enabled'] )  ? 0 : 1;
 	$out['media_replacement_enabled'] = empty( $input['media_replacement_enabled'] ) ? 0 : 1;
@@ -2068,6 +2104,20 @@ function jbwp_render_settings() {
 					<?php
 					$features = array(
 						array(
+							'key'         => 'password_protection_enabled',
+							'icon'        => 'shield-alt',
+							'title'       => 'Password Protection',
+							'description' => 'Beveilig de gehele website met een wachtwoord. IP-whitelisting, bypass-parameter en login-design overerving.',
+							'settings'    => 'password_protection',
+						),
+						array(
+							'key'         => 'maintenance_mode_enabled',
+							'icon'        => 'admin-tools',
+							'title'       => 'Maintenance Mode',
+							'description' => 'Toon een aanpasbare onderhoudspagina terwijl je aan de website werkt. Beheerders behouden toegang.',
+							'settings'    => 'maintenance',
+						),
+						array(
 							'key'         => 'media_categories_enabled',
 							'icon'        => 'category',
 							'title'       => 'Mediamappen',
@@ -2156,6 +2206,111 @@ function jbwp_render_settings() {
 									</div>
 								</div>
 								<p class="dwmcd-muted" style="margin-top:12px;font-size:12px">De <strong>accentkleur</strong> en het <strong>site-icoon</strong> uit het Dashboard-tabblad worden automatisch meegenomen op de login pagina.</p>
+							</div>
+						</div>
+						<?php endif; ?>
+						<?php if ( 'password_protection' === $f['settings'] ) : ?>
+						<div class="dwmcd-feature-settings" id="dwmcd-feature-settings-password_protection" style="display:<?php echo $enabled ? 'block' : 'none'; ?>">
+							<div class="dwmcd-feature-settings-inner">
+								<div class="dwmcd-field" style="margin-bottom:14px">
+									<label>Wachtwoord</label>
+									<input type="text" name="dwmcd_settings[password_protection_password]" value="<?php echo esc_attr( $settings['password_protection_password'] ); ?>" placeholder="Voer een wachtwoord in" style="width:100%;max-width:340px" autocomplete="off">
+								</div>
+								<div class="dwmcd-field" style="margin-bottom:14px">
+									<label>Melding <span class="dwmcd-optional">(boven het wachtwoordveld)</span></label>
+									<input type="text" name="dwmcd_settings[password_protection_message]" value="<?php echo esc_attr( $settings['password_protection_message'] ); ?>" placeholder="Deze website is beveiligd met een wachtwoord." style="width:100%">
+								</div>
+								<div class="dwmcd-field" style="margin-bottom:14px">
+									<label>IP-whitelist <span class="dwmcd-optional">(optioneel)</span></label>
+									<textarea name="dwmcd_settings[password_protection_ip_whitelist]" rows="3" placeholder="1 IP-adres per regel" style="width:100%;max-width:340px"><?php echo esc_textarea( $settings['password_protection_ip_whitelist'] ); ?></textarea>
+									<small class="dwmcd-help">IP-adressen die automatisch worden doorgelaten zonder wachtwoord, één per regel.</small>
+								</div>
+								<div class="dwmcd-field" style="margin-bottom:14px">
+									<label>IP-header <span class="dwmcd-optional">(optioneel)</span></label>
+									<input type="text" name="dwmcd_settings[password_protection_ip_header]" value="<?php echo esc_attr( $settings['password_protection_ip_header'] ); ?>" placeholder="bijv. HTTP_X_FORWARDED_FOR" style="width:100%;max-width:340px">
+									<small class="dwmcd-help">Stel een voorkeurs-header in voor achter een proxy/CDN (bijv. <code>HTTP_X_FORWARDED_FOR</code>, <code>HTTP_CF_CONNECTING_IP</code>). Leeg = <code>REMOTE_ADDR</code>.</small>
+								</div>
+								<div class="dwmcd-field">
+									<label>Bypass URL-parameter <span class="dwmcd-optional">(optioneel)</span></label>
+									<input type="text" name="dwmcd_settings[password_protection_bypass_key]" value="<?php echo esc_attr( $settings['password_protection_bypass_key'] ); ?>" placeholder="bijv. preview123" style="width:100%;max-width:340px">
+									<small class="dwmcd-help">Voeg <code>?bypass=<em>jouw-sleutel</em></code> toe aan de URL om het wachtwoord eenmalig te omzeilen. De sessie wordt daarna onthouden.</small>
+								</div>
+								<p class="dwmcd-muted" style="margin-top:14px;font-size:12px">Ingelogde beheerders omzeilen de wachtwoordbeveiliging altijd. Het design wordt automatisch overgenomen van de <strong>Custom Login Page</strong> module (als actief).</p>
+							</div>
+						</div>
+						<?php endif; ?>
+						<?php if ( 'maintenance' === $f['settings'] ) : ?>
+						<div class="dwmcd-feature-settings" id="dwmcd-feature-settings-maintenance" style="display:<?php echo $enabled ? 'block' : 'none'; ?>">
+							<div class="dwmcd-feature-settings-inner">
+								<div class="dwmcd-field" style="margin-bottom:14px">
+									<label>Paginatitel <span class="dwmcd-optional">(browsertab)</span></label>
+									<input type="text" name="dwmcd_settings[maintenance_title]" value="<?php echo esc_attr( $settings['maintenance_title'] ); ?>" placeholder="Onderhoud" style="width:100%">
+								</div>
+								<div class="dwmcd-field" style="margin-bottom:14px">
+									<label>Heading</label>
+									<input type="text" name="dwmcd_settings[maintenance_heading]" value="<?php echo esc_attr( $settings['maintenance_heading'] ); ?>" placeholder="We zijn zo terug" style="width:100%">
+								</div>
+								<div class="dwmcd-field" style="margin-bottom:14px">
+									<label>Beschrijving</label>
+									<textarea name="dwmcd_settings[maintenance_description]" rows="4" style="width:100%"><?php echo esc_textarea( $settings['maintenance_description'] ); ?></textarea>
+									<small class="dwmcd-help">HTML is toegestaan (bijv. <code>&lt;br&gt;</code>, <code>&lt;a&gt;</code>, <code>&lt;strong&gt;</code>).</small>
+								</div>
+								<div class="dwmcd-field" style="margin-bottom:14px">
+									<label>Achtergrond</label>
+									<div style="display:flex;gap:12px;align-items:center;margin-bottom:8px">
+										<label style="display:flex;align-items:center;gap:4px;cursor:pointer"><input type="radio" name="dwmcd_settings[maintenance_bg_type]" value="color" <?php checked( $settings['maintenance_bg_type'], 'color' ); ?> class="jbwp-maint-bg-radio"> Effen kleur</label>
+										<label style="display:flex;align-items:center;gap:4px;cursor:pointer"><input type="radio" name="dwmcd_settings[maintenance_bg_type]" value="image" <?php checked( $settings['maintenance_bg_type'], 'image' ); ?> class="jbwp-maint-bg-radio"> Afbeelding</label>
+									</div>
+									<div id="jbwp-maint-bg-color-row" style="<?php echo 'image' === $settings['maintenance_bg_type'] ? 'display:none' : ''; ?>">
+										<input type="color" name="dwmcd_settings[maintenance_bg_color]" value="<?php echo esc_attr( $settings['maintenance_bg_color'] ); ?>" style="width:50px;height:32px;border:none;padding:0;cursor:pointer">
+									</div>
+									<div id="jbwp-maint-bg-image-row" style="<?php echo 'color' === $settings['maintenance_bg_type'] ? 'display:none' : ''; ?>">
+										<?php
+										$maint_bg_url = '';
+										if ( ! empty( $settings['maintenance_bg_id'] ) ) {
+											$maint_bg_url = wp_get_attachment_image_url( (int) $settings['maintenance_bg_id'], 'large' );
+										}
+										?>
+										<div class="dwmcd-logo-uploader">
+											<div class="dwmcd-logo-preview<?php echo $maint_bg_url ? '' : ' dwmcd-logo-empty'; ?>" id="jbwp-maint-bg-preview" style="width:100%;max-width:400px;height:100px;border-radius:8px;overflow:hidden">
+												<?php if ( $maint_bg_url ) : ?>
+													<img src="<?php echo esc_url( $maint_bg_url ); ?>" alt="Achtergrond" style="width:100%;height:100%;object-fit:cover">
+												<?php else : ?>
+													<span class="dashicons dashicons-format-image"></span>
+													<span>Geen achtergrond geselecteerd</span>
+												<?php endif; ?>
+											</div>
+											<div class="dwmcd-logo-actions" style="margin-top:6px">
+												<input type="hidden" name="dwmcd_settings[maintenance_bg_id]" id="jbwp-maint-bg-id" value="<?php echo esc_attr( $settings['maintenance_bg_id'] ); ?>">
+												<button type="button" class="button button-secondary jbwp-maint-bg-select">
+													<span class="dashicons dashicons-upload"></span> Afbeelding kiezen
+												</button>
+												<button type="button" class="button-link-delete jbwp-maint-bg-remove<?php echo empty( $settings['maintenance_bg_id'] ) ? ' hidden' : ''; ?>">
+													Verwijderen
+												</button>
+											</div>
+										</div>
+									</div>
+								</div>
+								<div class="dwmcd-field" style="margin-bottom:14px">
+									<label><input type="checkbox" name="dwmcd_settings[maintenance_use_page]" value="1" <?php checked( ! empty( $settings['maintenance_use_page'] ) ); ?> id="jbwp-maint-use-page"> Gebruik een bestaande pagina als onderhoudspagina</label>
+								</div>
+								<div class="dwmcd-field" id="jbwp-maint-page-row" style="<?php echo empty( $settings['maintenance_use_page'] ) ? 'display:none;' : ''; ?>margin-bottom:14px">
+									<label>Pagina</label>
+									<?php
+									wp_dropdown_pages( array(
+										'name'             => 'dwmcd_settings[maintenance_page_id]',
+										'selected'         => $settings['maintenance_page_id'],
+										'show_option_none' => '— Kies een pagina —',
+										'option_none_value'=> 0,
+									) );
+									?>
+								</div>
+								<div class="dwmcd-field">
+									<label>Custom CSS <span class="dwmcd-optional">(optioneel)</span></label>
+									<textarea name="dwmcd_settings[maintenance_custom_css]" rows="4" placeholder="body { ... }" style="width:100%;font-family:monospace;font-size:12px"><?php echo esc_textarea( $settings['maintenance_custom_css'] ); ?></textarea>
+								</div>
+								<p class="dwmcd-muted" style="margin-top:14px;font-size:12px">Ingelogde beheerders kunnen de site gewoon bekijken. Bezoekers krijgen een <strong>503 Service Unavailable</strong> response.</p>
 							</div>
 						</div>
 						<?php endif; ?>
@@ -2712,6 +2867,32 @@ add_action( 'admin_bar_menu', function ( $bar ) {
 	}
 }, 11 );
 
+// ── Admin bar status badges: Maintenance Mode & Password Protection ─────────
+add_action( 'admin_bar_menu', function ( $bar ) {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		return;
+	}
+	$s = jbwp_get_settings();
+	$settings_url = admin_url( 'admin.php?page=dwmcd-settings' );
+
+	if ( ! empty( $s['maintenance_mode_enabled'] ) ) {
+		$bar->add_node( array(
+			'id'    => 'jbwp-maintenance-notice',
+			'title' => '<span class="ab-icon dashicons dashicons-admin-tools" style="font:normal 20px/1 dashicons;margin-right:4px;color:#fbbf24"></span>Onderhoudsmodus actief',
+			'href'  => $settings_url,
+			'meta'  => array( 'class' => 'jbwp-status-warning' ),
+		) );
+	}
+	if ( ! empty( $s['password_protection_enabled'] ) && ! empty( $s['password_protection_password'] ) ) {
+		$bar->add_node( array(
+			'id'    => 'jbwp-password-notice',
+			'title' => '<span class="ab-icon dashicons dashicons-shield-alt" style="font:normal 20px/1 dashicons;margin-right:4px;color:#fbbf24"></span>Wachtwoordbeveiliging actief',
+			'href'  => $settings_url,
+			'meta'  => array( 'class' => 'jbwp-status-warning' ),
+		) );
+	}
+}, 100 );
+
 // ── Login pagina — branding ──────────────────────────────────────────────────
 
 add_action( 'login_head', function () {
@@ -3106,6 +3287,10 @@ add_filter( 'ajax_query_attachments_args', function ( $query ) {
 		return $query;
 	}
 	$cat = ! empty( $_REQUEST['query']['media_category'] ) ? sanitize_key( $_REQUEST['query']['media_category'] ) : '';
+	// Always remove the raw media_category key so WP doesn't auto-parse it
+	// as a taxonomy query (which would look for a term slug, fail for
+	// __uncategorized, and return zero results).
+	unset( $query['media_category'] );
 	if ( '__uncategorized' === $cat ) {
 		$query['tax_query'] = array( array(
 			'taxonomy' => 'media_category',
@@ -4198,6 +4383,266 @@ function jbwp_save_user_avatar( $user_id ) {
 }
 
 
+// ══════════════════════════════════════════════════════════════════════════════
+// ── MODULE: Password Protection ─────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// When enabled, all front-end requests from non-logged-in users (or logged-in
+// users without `manage_options`) require a site-wide password. The password
+// form inherits the Custom Login Page design (if that module is active).
+//
+// Bypass mechanisms:
+//  • IP whitelisting — comma- or newline-separated list of IPs
+//  • URL parameter  — ?bypass=<key> sets a session cookie
+//  • Logged-in admins always pass through
+
+add_action( 'template_redirect', function () {
+	$s = jbwp_get_settings();
+	if ( empty( $s['password_protection_enabled'] ) || empty( $s['password_protection_password'] ) ) {
+		return;
+	}
+
+	// Admins always pass through
+	if ( is_user_logged_in() && current_user_can( 'manage_options' ) ) {
+		return;
+	}
+
+	// Don't block wp-login, wp-admin, admin-ajax, cron, REST auth endpoints
+	if ( is_admin() || wp_doing_ajax() || wp_doing_cron() ) {
+		return;
+	}
+	if ( isset( $GLOBALS['pagenow'] ) && 'wp-login.php' === $GLOBALS['pagenow'] ) {
+		return;
+	}
+
+	// Session cookie name
+	$cookie_name = 'jbwp_site_access_' . md5( ABSPATH );
+
+	// Bypass via URL parameter
+	$bypass_key = trim( $s['password_protection_bypass_key'] );
+	if ( '' !== $bypass_key && isset( $_GET['bypass'] ) && $_GET['bypass'] === $bypass_key ) {
+		setcookie( $cookie_name, sha1( $s['password_protection_password'] . NONCE_SALT ), 0, COOKIEPATH, COOKIE_DOMAIN, is_ssl(), true );
+		return;
+	}
+
+	// Check session cookie
+	if ( isset( $_COOKIE[ $cookie_name ] ) && $_COOKIE[ $cookie_name ] === sha1( $s['password_protection_password'] . NONCE_SALT ) ) {
+		return;
+	}
+
+	// IP whitelist
+	$whitelist_raw = trim( $s['password_protection_ip_whitelist'] );
+	if ( '' !== $whitelist_raw ) {
+		$header = trim( $s['password_protection_ip_header'] );
+		if ( '' !== $header && isset( $_SERVER[ $header ] ) ) {
+			$visitor_ip = sanitize_text_field( wp_unslash( $_SERVER[ $header ] ) );
+			// Take the first IP if comma-separated (X-Forwarded-For)
+			if ( str_contains( $visitor_ip, ',' ) ) {
+				$visitor_ip = trim( explode( ',', $visitor_ip )[0] );
+			}
+		} else {
+			$visitor_ip = sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ?? '' ) );
+		}
+		$whitelist = array_filter( array_map( 'trim', preg_split( '/[\r\n,]+/', $whitelist_raw ) ) );
+		if ( in_array( $visitor_ip, $whitelist, true ) ) {
+			return;
+		}
+	}
+
+	// Handle password submission
+	if ( 'POST' === ( $_SERVER['REQUEST_METHOD'] ?? '' ) && isset( $_POST['jbwp_site_password'] ) ) {
+		if ( wp_verify_nonce( $_POST['_jbwp_pw_nonce'] ?? '', 'jbwp_password_protection' )
+			&& $_POST['jbwp_site_password'] === $s['password_protection_password'] ) {
+			setcookie( $cookie_name, sha1( $s['password_protection_password'] . NONCE_SALT ), 0, COOKIEPATH, COOKIE_DOMAIN, is_ssl(), true );
+			wp_safe_redirect( esc_url_raw( wp_unslash( $_SERVER['REQUEST_URI'] ) ) );
+			exit;
+		}
+		$error = true;
+	}
+
+	// Render password form
+	$accent   = esc_attr( $s['accent_color'] ?? '#2952ff' );
+	$icon_id  = (int) ( $s['site_icon_id'] ?? 0 );
+	$icon_url = $icon_id ? wp_get_attachment_image_url( $icon_id, 'thumbnail' ) : '';
+	$use_login_design = ! empty( $s['login_card_style'] );
+	$bg_id    = $use_login_design ? (int) ( $s['login_bg_id'] ?? 0 ) : 0;
+	$bg_url   = $bg_id ? wp_get_attachment_image_url( $bg_id, 'full' ) : '';
+	$message  = esc_html( $s['password_protection_message'] );
+
+	// Prevent caching
+	nocache_headers();
+	header( 'HTTP/1.1 401 Unauthorized' );
+	?>
+<!DOCTYPE html>
+<html <?php language_attributes(); ?>>
+<head>
+<meta charset="<?php bloginfo( 'charset' ); ?>">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title><?php echo esc_html( get_bloginfo( 'name' ) ); ?> — Beveiligd</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;background:<?php echo $bg_url ? '#0f172a' : '#0f172a'; ?>;color:#e2e8f0}
+<?php if ( $bg_url ) : ?>
+body::before{content:'';position:fixed;inset:0;background:url('<?php echo esc_url( $bg_url ); ?>') center/cover no-repeat;opacity:.35;z-index:0}
+<?php endif; ?>
+.jbwp-pw-card{position:relative;z-index:1;background:rgba(15,23,42,.85);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:40px 36px;max-width:400px;width:100%;text-align:center;box-shadow:0 25px 50px rgba(0,0,0,.4)}
+.jbwp-pw-icon{width:48px;height:48px;border-radius:12px;margin:0 auto 16px;object-fit:contain}
+.jbwp-pw-title{font-size:20px;font-weight:600;margin-bottom:6px;color:#f8fafc}
+.jbwp-pw-msg{font-size:14px;color:#94a3b8;margin-bottom:24px}
+.jbwp-pw-input{width:100%;padding:10px 14px;border:1px solid rgba(255,255,255,.12);border-radius:8px;background:rgba(255,255,255,.06);color:#f8fafc;font-size:14px;outline:none;transition:border-color .15s}
+.jbwp-pw-input:focus{border-color:<?php echo $accent; ?>}
+.jbwp-pw-btn{width:100%;margin-top:12px;padding:10px;border:none;border-radius:8px;background:<?php echo $accent; ?>;color:#fff;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .15s}
+.jbwp-pw-btn:hover{opacity:.9}
+.jbwp-pw-error{color:#f87171;font-size:13px;margin-top:10px}
+</style>
+</head>
+<body>
+<div class="jbwp-pw-card">
+	<?php if ( $icon_url ) : ?>
+		<img src="<?php echo esc_url( $icon_url ); ?>" alt="" class="jbwp-pw-icon">
+	<?php else : ?>
+		<div style="width:48px;height:48px;border-radius:12px;margin:0 auto 16px;background:<?php echo $accent; ?>20;display:flex;align-items:center;justify-content:center">
+			<svg width="24" height="24" fill="none" stroke="<?php echo $accent; ?>" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+		</div>
+	<?php endif; ?>
+	<h1 class="jbwp-pw-title"><?php echo esc_html( get_bloginfo( 'name' ) ); ?></h1>
+	<p class="jbwp-pw-msg"><?php echo $message; ?></p>
+	<form method="post">
+		<?php wp_nonce_field( 'jbwp_password_protection', '_jbwp_pw_nonce' ); ?>
+		<input type="password" name="jbwp_site_password" class="jbwp-pw-input" placeholder="Wachtwoord" autofocus>
+		<button type="submit" class="jbwp-pw-btn">Toegang</button>
+		<?php if ( ! empty( $error ) ) : ?>
+			<p class="jbwp-pw-error">Onjuist wachtwoord. Probeer het opnieuw.</p>
+		<?php endif; ?>
+	</form>
+</div>
+</body>
+</html>
+	<?php
+	exit;
+} );
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── MODULE: Maintenance Mode ────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// Shows a customizable maintenance page to all front-end visitors while admins
+// can still browse the site normally. Returns HTTP 503 + Retry-After header
+// so search engines know the downtime is temporary.
+
+add_action( 'template_redirect', function () {
+	$s = jbwp_get_settings();
+	if ( empty( $s['maintenance_mode_enabled'] ) ) {
+		return;
+	}
+
+	// Admins pass through
+	if ( is_user_logged_in() && current_user_can( 'manage_options' ) ) {
+		return;
+	}
+
+	// Don't block wp-login, wp-admin, admin-ajax, cron
+	if ( is_admin() || wp_doing_ajax() || wp_doing_cron() ) {
+		return;
+	}
+	if ( isset( $GLOBALS['pagenow'] ) && 'wp-login.php' === $GLOBALS['pagenow'] ) {
+		return;
+	}
+
+	// If "use existing page" is enabled and a page is selected, render it
+	if ( ! empty( $s['maintenance_use_page'] ) && ! empty( $s['maintenance_page_id'] ) ) {
+		$page = get_post( (int) $s['maintenance_page_id'] );
+		if ( $page && 'publish' === $page->post_status ) {
+			nocache_headers();
+			header( 'HTTP/1.1 503 Service Unavailable' );
+			header( 'Retry-After: 3600' );
+			// Render the page through WP's template system
+			$GLOBALS['post'] = $page;
+			setup_postdata( $page );
+			$title   = esc_html( $s['maintenance_title'] ?: get_bloginfo( 'name' ) . ' — Onderhoud' );
+			$content = apply_filters( 'the_content', $page->post_content );
+			$css     = $s['maintenance_custom_css'];
+			?>
+<!DOCTYPE html>
+<html <?php language_attributes(); ?>>
+<head>
+<meta charset="<?php bloginfo( 'charset' ); ?>">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title><?php echo $title; ?></title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;min-height:100vh;padding:40px 20px;color:#e2e8f0;background:<?php echo esc_attr( $s['maintenance_bg_color'] ); ?>}</style>
+<?php if ( $css ) : ?><style><?php echo $css; ?></style><?php endif; ?>
+</head>
+<body>
+<div style="max-width:800px;margin:0 auto"><?php echo $content; ?></div>
+</body>
+</html>
+			<?php
+			wp_reset_postdata();
+			exit;
+		}
+	}
+
+	// Default: built-in maintenance page
+	$accent    = esc_attr( $s['accent_color'] ?? '#2952ff' );
+	$icon_id   = (int) ( $s['site_icon_id'] ?? 0 );
+	$icon_url  = $icon_id ? wp_get_attachment_image_url( $icon_id, 'thumbnail' ) : '';
+	$title     = esc_html( $s['maintenance_title'] ?: 'Onderhoud' );
+	$heading   = esc_html( $s['maintenance_heading'] );
+	$desc      = wp_kses_post( $s['maintenance_description'] );
+	$bg_type   = $s['maintenance_bg_type'];
+	$bg_color  = esc_attr( $s['maintenance_bg_color'] );
+	$bg_id     = (int) $s['maintenance_bg_id'];
+	$bg_url    = ( 'image' === $bg_type && $bg_id ) ? wp_get_attachment_image_url( $bg_id, 'full' ) : '';
+	$custom_css = $s['maintenance_custom_css'];
+
+	nocache_headers();
+	header( 'HTTP/1.1 503 Service Unavailable' );
+	header( 'Retry-After: 3600' );
+	?>
+<!DOCTYPE html>
+<html <?php language_attributes(); ?>>
+<head>
+<meta charset="<?php bloginfo( 'charset' ); ?>">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title><?php echo $title; ?></title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;background:<?php echo $bg_color; ?>;color:#e2e8f0}
+<?php if ( $bg_url ) : ?>
+body::before{content:'';position:fixed;inset:0;background:url('<?php echo esc_url( $bg_url ); ?>') center/cover no-repeat;opacity:.4;z-index:0}
+<?php endif; ?>
+.jbwp-maint{position:relative;z-index:1;text-align:center;max-width:560px;padding:40px 24px}
+.jbwp-maint-icon{width:56px;height:56px;border-radius:14px;margin:0 auto 20px;object-fit:contain}
+.jbwp-maint h1{font-size:32px;font-weight:700;color:#f8fafc;margin-bottom:12px}
+.jbwp-maint p{font-size:16px;line-height:1.7;color:#94a3b8}
+.jbwp-maint-bar{width:120px;height:4px;border-radius:2px;margin:28px auto 0;background:rgba(255,255,255,.08);overflow:hidden;position:relative}
+.jbwp-maint-bar::after{content:'';position:absolute;left:-40%;width:40%;height:100%;background:<?php echo $accent; ?>;border-radius:2px;animation:jbwp-slide 1.4s ease-in-out infinite}
+@keyframes jbwp-slide{0%{left:-40%}100%{left:100%}}
+</style>
+<?php if ( $custom_css ) : ?><style><?php echo $custom_css; ?></style><?php endif; ?>
+</head>
+<body>
+<div class="jbwp-maint">
+	<?php if ( $icon_url ) : ?>
+		<img src="<?php echo esc_url( $icon_url ); ?>" alt="" class="jbwp-maint-icon">
+	<?php else : ?>
+		<div style="width:56px;height:56px;border-radius:14px;margin:0 auto 20px;background:<?php echo $accent; ?>20;display:flex;align-items:center;justify-content:center">
+			<svg width="28" height="28" fill="none" stroke="<?php echo $accent; ?>" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+		</div>
+	<?php endif; ?>
+	<h1><?php echo $heading; ?></h1>
+	<p><?php echo $desc; ?></p>
+	<div class="jbwp-maint-bar"></div>
+</div>
+</body>
+</html>
+	<?php
+	exit;
+}, 8 ); // Priority 8: run before password protection (default 10)
+
 // ── Roadmap / Coming Soon page ──────────────────────────────────────────────
 
 function jbwp_roadmap_features() {
@@ -4216,31 +4661,8 @@ function jbwp_roadmap_features() {
 						'Automatische redirect bij toegang tot standaard login-URL\'s zoals /wp-login.php',
 					),
 				),
-				array(
-					'title'       => 'Password Protection',
-					'description' => 'Beveilig de gehele website met een wachtwoord om content te verbergen voor publiek en zoekmachines.',
-					'icon'        => 'lock',
-					'bullets'     => array(
-						'IP-whitelisting',
-						'Optie om voorkeurs-header voor IP-adres in te stellen',
-						'Bypass via URL-parameter',
-						'Automatisch design overnemen van de Login Page Customizer module',
-						'Ingelogde beheerders behouden volledige toegang',
-					),
-				),
-				array(
-					'title'       => 'Maintenance Mode',
-					'description' => 'Toon een aanpasbare onderhoudspagina op de frontend terwijl je aan de website werkt.',
-					'icon'        => 'admin-tools',
-					'bullets'     => array(
-						'Aanpasbare paginatitel in de browsertab',
-						'WYSIWYG-editor voor heading en beschrijving',
-						'Afbeelding of effen kleur als achtergrond',
-						'Optie om custom CSS toe te voegen',
-						'Optie om een bestaande pagina als onderhoudspagina te gebruiken',
-						'Ingelogde beheerders kunnen de site gewoon bekijken',
-					),
-				),
+				// Password Protection — gebouwd in v4.4.0
+				// Maintenance Mode — gebouwd in v4.4.0
 			),
 		),
 		'code' => array(

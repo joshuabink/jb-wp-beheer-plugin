@@ -1,4 +1,4 @@
-/* JB WP Beheer Plugin — v4.3.1 */
+/* JB WP Beheer Plugin — v4.4.0 */
 
 /* global DWMCD, wp */
 window.DWMCD = window.DWMCD || { typeHints: {}, typePlaceholders: {}, noTargetTypes: [], ajaxurl: '', nonce: '' };
@@ -758,6 +758,12 @@ window.DWMCD = window.DWMCD || { typeHints: {}, typePlaceholders: {}, noTargetTy
         else ungroupedZone.appendChild(chip);
       });
 
+      // Always keep Dashboard (index.php) as the very first item
+      var dashChip = ungroupedZone.querySelector('.dwmcd-menu-chip[data-slug="index.php"]');
+      if (dashChip && ungroupedZone.firstChild) {
+        ungroupedZone.insertBefore(dashChip, ungroupedZone.firstChild);
+      }
+
       // Create groups and move matching chips
       var ungroupedBucket = groupsArea.querySelector('.dwmcd-group-ungrouped');
       Object.keys(groupMap).forEach(function (groupName) {
@@ -770,9 +776,11 @@ window.DWMCD = window.DWMCD || { typeHints: {}, typePlaceholders: {}, noTargetTy
         });
 
         // Also match partial slugs (e.g. "edit.php?post_type=product" matches "product")
+        // Never move Dashboard (index.php) into a group — it must stay at top
         ungroupedZone.querySelectorAll('.dwmcd-menu-chip').forEach(function (chip) {
           if (matchedChips.indexOf(chip) !== -1) return;
           var chipSlug = chip.dataset.slug || '';
+          if (chipSlug === 'index.php') return; // Dashboard stays ungrouped
           slugs.forEach(function (slug) {
             if (chipSlug.indexOf(slug) !== -1 || slug.indexOf(chipSlug) !== -1) {
               matchedChips.push(chip);
@@ -955,5 +963,67 @@ window.DWMCD = window.DWMCD || { typeHints: {}, typePlaceholders: {}, noTargetTy
       }
     });
   });
+
+  // ── Maintenance Mode: background type radio toggle ─────────────────────────
+  document.querySelectorAll('.jbwp-maint-bg-radio').forEach(function (radio) {
+    radio.addEventListener('change', function () {
+      var colorRow = document.getElementById('jbwp-maint-bg-color-row');
+      var imageRow = document.getElementById('jbwp-maint-bg-image-row');
+      if (!colorRow || !imageRow) return;
+      if (this.value === 'color') {
+        colorRow.style.display = '';
+        imageRow.style.display = 'none';
+      } else {
+        colorRow.style.display = 'none';
+        imageRow.style.display = '';
+      }
+    });
+  });
+
+  // ── Maintenance Mode: "use page" checkbox toggle ───────────────────────────
+  var usePageCb = document.getElementById('jbwp-maint-use-page');
+  if (usePageCb) {
+    usePageCb.addEventListener('change', function () {
+      var row = document.getElementById('jbwp-maint-page-row');
+      if (row) row.style.display = this.checked ? '' : 'none';
+    });
+  }
+
+  // ── Maintenance Mode: background image uploader ────────────────────────────
+  (function () {
+    var selectBtn = document.querySelector('.jbwp-maint-bg-select');
+    var removeBtn = document.querySelector('.jbwp-maint-bg-remove');
+    var idInput   = document.getElementById('jbwp-maint-bg-id');
+    var preview   = document.getElementById('jbwp-maint-bg-preview');
+    if (!selectBtn) return;
+
+    selectBtn.addEventListener('click', function () {
+      if (typeof wp === 'undefined' || !wp.media) return;
+      var frame = wp.media({
+        title:    'Achtergrondafbeelding kiezen',
+        button:   { text: 'Gebruiken als achtergrond' },
+        multiple: false,
+        library:  { type: 'image' },
+      });
+      frame.on('select', function () {
+        var att = frame.state().get('selection').first().toJSON();
+        idInput.value = att.id;
+        var url = (att.sizes && att.sizes.large) ? att.sizes.large.url : att.url;
+        preview.innerHTML = '<img src="' + url + '" alt="Achtergrond" style="width:100%;height:100%;object-fit:cover">';
+        preview.classList.remove('dwmcd-logo-empty');
+        removeBtn.classList.remove('hidden');
+      });
+      frame.open();
+    });
+
+    if (removeBtn) {
+      removeBtn.addEventListener('click', function () {
+        idInput.value = '0';
+        preview.innerHTML = '<span class="dashicons dashicons-format-image"></span><span>Geen achtergrond geselecteerd</span>';
+        preview.classList.add('dwmcd-logo-empty');
+        removeBtn.classList.add('hidden');
+      });
+    }
+  })();
 
 })();
