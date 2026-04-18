@@ -3,7 +3,7 @@
  * Plugin Name:       JB WP Beheer Plugin
  * Plugin URI:        https://github.com/joshuabink/jb-wp-beheer-plugin
  * Description:       Professioneel klantdashboard voor WordPress websites.
- * Version:           4.4.0
+ * Version:           4.4.1
  * Author:            Joshua Bink
  * Author URI:        https://github.com/joshuabink
  * License:           GPL-2.0-or-later
@@ -33,7 +33,7 @@ if ( defined( 'JBWP_PLUGIN_VERSION' ) ) {
 // ── Plugin identity ──────────────────────────────────────────────────────────
 // Public-facing identifiers (slug, version, paths). Keep in sync with the
 // header above so the auto-updater and WP plugin screens use the same values.
-define( 'JBWP_PLUGIN_VERSION', '4.4.0' );
+define( 'JBWP_PLUGIN_VERSION', '4.4.1' );
 define( 'JBWP_PLUGIN_SLUG',    'jb-wp-beheer-plugin' );
 define( 'JBWP_PLUGIN_FILE',    __FILE__ );
 define( 'JBWP_PLUGIN_DIR',     plugin_dir_path( __FILE__ ) );
@@ -2580,81 +2580,23 @@ add_action( 'admin_head', function () {
 	}
 }, 999 );
 
-// ── Frontend topbar styling ───────────────────────────────────────────────────
+// ── Frontend: favicon + site icon only (no admin bar color overrides) ────────
+// The admin area admin bar is styled via admin.css (which only loads in wp-admin).
+// On the frontend we intentionally do NOT override admin bar colors because:
+// • WP's default dark bar has reliable contrast with all themes
+// • Plugin dropdowns (Elementor, Rank Math, etc.) assume a dark bar
+// • Forcing sidebar colors on the frontend bar causes contrast issues
 
 add_action( 'wp_head', function () {
-	if ( ! is_admin_bar_showing() ) {
-		return;
+	$s = jbwp_get_settings();
+
+	// Site icon in admin bar — just the icon styling, not bar colors
+	if ( is_admin_bar_showing() ) {
+		echo '<style id="dwmcd-frontend-bar">'
+			. '#wpadminbar #wp-admin-bar-dwmcd-site-icon>a.ab-item{padding:0 7px !important;display:flex !important;align-items:center !important;justify-content:center !important;height:32px !important;min-width:36px !important;}'
+			. '#wpadminbar #wp-admin-bar-dwmcd-site-icon img.dwmcd-adminbar-icon,#wpadminbar img.dwmcd-adminbar-icon{height:20px !important;width:20px !important;max-height:20px !important;max-width:20px !important;object-fit:contain !important;border-radius:3px !important;display:block !important;margin:0 !important;padding:0 !important;border:none !important;}'
+			. '</style>';
 	}
-	$s          = jbwp_get_settings();
-	$accent     = sanitize_hex_color( $s['accent_color'] ) ?: '#2952ff';
-	$sidebar_bg = sanitize_hex_color( $s['sidebar_bg'] )   ?: '#ffffff';
-	$c          = jbwp_parse_sidebar_colors( $sidebar_bg );
-
-	echo '<style id="dwmcd-frontend-bar">'
-		// Main bar background
-		. '#wpadminbar{'
-		. 'background:' . esc_attr( $sidebar_bg ) . ' !important;'
-		. 'border-bottom:1px solid ' . esc_attr( $c['sub_border'] ) . ' !important;'
-		. 'box-shadow:0 1px 8px rgba(0,0,0,.07) !important;'
-		. '}'
-
-		// All text / labels / icons in bar
-		. '#wpadminbar .ab-item,'
-		. '#wpadminbar a.ab-item,'
-		. '#wpadminbar .ab-item:before,'
-		. '#wpadminbar .ab-icon,'
-		. '#wpadminbar .ab-icon:before,'
-		. '#wpadminbar .ab-label,'
-		. '#wpadminbar li#wp-admin-bar-my-account.with-avatar>a span.ab-label,'
-		. '#wpadminbar #wp-admin-bar-my-account .ab-item{'
-		. 'color:' . esc_attr( $c['text'] ) . ' !important;'
-		. '}'
-
-		// Hover state for top-level items
-		. '#wpadminbar .ab-top-menu>li:hover>.ab-item,'
-		. '#wpadminbar .ab-top-menu>li.hover>.ab-item,'
-		. '#wpadminbar .ab-top-menu>li:focus>.ab-item{'
-		. 'background:' . esc_attr( $c['hover'] ) . ' !important;'
-		. 'color:' . esc_attr( $accent ) . ' !important;'
-		. '}'
-
-		// Hover: icon color follows accent
-		. '#wpadminbar .ab-top-menu>li:hover>.ab-item:before,'
-		. '#wpadminbar .ab-top-menu>li.hover>.ab-item:before,'
-		. '#wpadminbar .ab-top-menu>li:hover .ab-icon:before,'
-		. '#wpadminbar .ab-top-menu>li.hover .ab-icon:before{'
-		. 'color:' . esc_attr( $accent ) . ' !important;'
-		. '}'
-
-		// Sub-menu background
-		. '#wpadminbar .menupop .ab-sub-wrapper,'
-		. '#wpadminbar .shortlink-input{'
-		. 'background:' . esc_attr( $c['sub'] ) . ' !important;'
-		. 'border:1px solid ' . esc_attr( $c['sub_border'] ) . ' !important;'
-		. 'border-top:none !important;'
-		. 'box-shadow:0 4px 16px rgba(0,0,0,.12) !important;'
-		. '}'
-
-		// Sub-menu items text
-		. '#wpadminbar .menupop .ab-sub-wrapper .ab-item,'
-		. '#wpadminbar .menupop .ab-sub-wrapper a.ab-item,'
-		. '#wpadminbar .menupop .ab-sub-wrapper .ab-item:before{'
-		. 'color:' . esc_attr( $c['text'] ) . ' !important;'
-		. 'background:transparent !important;'
-		. '}'
-
-		// Sub-menu item hover
-		. '#wpadminbar .menupop .ab-sub-wrapper li:hover>.ab-item,'
-		. '#wpadminbar .menupop .ab-sub-wrapper li.hover>.ab-item{'
-		. 'background:' . esc_attr( $c['hover'] ) . ' !important;'
-		. 'color:' . esc_attr( $accent ) . ' !important;'
-		. '}'
-
-		// Site icon node — matches dashicon size (20px)
-		. '#wpadminbar #wp-admin-bar-dwmcd-site-icon>a.ab-item{padding:0 7px !important;display:flex !important;align-items:center !important;justify-content:center !important;height:32px !important;min-width:36px !important;}'
-		. '#wpadminbar #wp-admin-bar-dwmcd-site-icon img.dwmcd-adminbar-icon,#wpadminbar img.dwmcd-adminbar-icon{height:20px !important;width:20px !important;max-height:20px !important;max-width:20px !important;object-fit:contain !important;border-radius:3px !important;display:block !important;margin:0 !important;padding:0 !important;border:none !important;}'
-		. '</style>';
 
 	// Frontend favicon — only output if WP doesn't have its own site icon
 	if ( ! empty( $s['site_icon_id'] ) && ! has_site_icon() ) {
@@ -4661,8 +4603,8 @@ function jbwp_roadmap_features() {
 						'Automatische redirect bij toegang tot standaard login-URL\'s zoals /wp-login.php',
 					),
 				),
-				// Password Protection — gebouwd in v4.4.0
-				// Maintenance Mode — gebouwd in v4.4.0
+				// Password Protection — gebouwd in v4.4.1
+				// Maintenance Mode — gebouwd in v4.4.1
 			),
 		),
 		'code' => array(

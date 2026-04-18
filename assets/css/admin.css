@@ -1,4 +1,4 @@
-/* JB WP Beheer Plugin — v4.3.1 */
+/* JB WP Beheer Plugin — v4.4.1 */
 
 /* ── CSS variabelen ───────────────────────────────────────────────────────── */
 :root {
@@ -912,7 +912,12 @@ body.folded #wpfooter { margin-left: 36px !important; }
 .dwmcd-support-box .button-primary:hover { filter: brightness(.9); }
 
 /* ── Utility ──────────────────────────────────────────────────────────────── */
-.hidden { display: none !important; }
+/* Scoped to our plugin containers only — an unscoped .hidden rule would
+   break WooCommerce product data panels and other plugins that rely on
+   .hidden for their own show/hide logic. */
+.dwmcd-settings-wrap .hidden,
+.dwmcd-custom-dashboard .hidden,
+[data-tab-panel].hidden { display: none !important; }
 
 /* ── Responsive ───────────────────────────────────────────────────────────── */
 @media (max-width: 1200px) {
