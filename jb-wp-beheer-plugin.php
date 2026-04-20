@@ -3,7 +3,7 @@
  * Plugin Name:       JB WP Beheer Plugin
  * Plugin URI:        https://github.com/joshuabink/jb-wp-beheer-plugin
  * Description:       Professioneel klantdashboard voor WordPress websites.
- * Version:           4.4.1
+ * Version:           4.4.2
  * Author:            Joshua Bink
  * Author URI:        https://github.com/joshuabink
  * License:           GPL-2.0-or-later
@@ -33,7 +33,7 @@ if ( defined( 'JBWP_PLUGIN_VERSION' ) ) {
 // ── Plugin identity ──────────────────────────────────────────────────────────
 // Public-facing identifiers (slug, version, paths). Keep in sync with the
 // header above so the auto-updater and WP plugin screens use the same values.
-define( 'JBWP_PLUGIN_VERSION', '4.4.1' );
+define( 'JBWP_PLUGIN_VERSION', '4.4.2' );
 define( 'JBWP_PLUGIN_SLUG',    'jb-wp-beheer-plugin' );
 define( 'JBWP_PLUGIN_FILE',    __FILE__ );
 define( 'JBWP_PLUGIN_DIR',     plugin_dir_path( __FILE__ ) );
@@ -2458,7 +2458,42 @@ function jbwp_render_menu_chip( $item ) {
 
 // ── Scripts & styles ──────────────────────────────────────────────────────────
 
+/**
+ * Detect WooCommerce email preview context.
+ *
+ * WooCommerce loads email previews inside an iframe that points to an admin
+ * URL. If we load our admin CSS there, the entire admin shell (sidebar bg,
+ * border-radius, background) renders on top of the email content. This helper
+ * returns true when the current request is an email preview so we can bail.
+ *
+ * Covers:
+ * - WC 8.6+ dedicated preview page (?page=wc-email-preview)
+ * - Legacy preview nonce approach (?wc_email_preview=...)
+ * - WC REST/AJAX email preview endpoints
+ */
+function jbwp_is_wc_email_preview() {
+	// WooCommerce 8.6+ dedicated email preview page
+	if ( isset( $_GET['page'] ) && 'wc-email-preview' === $_GET['page'] ) {
+		return true;
+	}
+	// Legacy email preview parameter (WC < 8.5)
+	if ( isset( $_GET['wc_email_preview'] ) || isset( $_GET['preview_woocommerce_mail'] ) ) {
+		return true;
+	}
+	// WooCommerce email preview AJAX action
+	if ( defined( 'DOING_AJAX' ) && DOING_AJAX && isset( $_REQUEST['action'] ) &&
+	     in_array( $_REQUEST['action'], array( 'woocommerce_email_preview', 'wc_email_preview' ), true ) ) {
+		return true;
+	}
+	return false;
+}
+
 add_action( 'admin_enqueue_scripts', function ( $hook ) {
+	// Don't load admin CSS on WooCommerce email preview pages (loaded in iframe)
+	if ( jbwp_is_wc_email_preview() ) {
+		return;
+	}
+
 	// CSS loads everywhere (branding, sidebar, adminbar, notices)
 	wp_enqueue_style( 'dwmcd-admin', plugin_dir_url( __FILE__ ) . 'assets/css/admin.css', array(), DWMCD_VERSION );
 
@@ -2554,6 +2589,11 @@ add_filter( 'site_icon_meta_tags', function ( $tags ) {
 // ── Branding CSS ──────────────────────────────────────────────────────────────
 
 add_action( 'admin_head', function () {
+	// Don't output branding CSS in WooCommerce email preview iframe
+	if ( jbwp_is_wc_email_preview() ) {
+		return;
+	}
+
 	$s          = jbwp_get_settings();
 	$accent     = sanitize_hex_color( $s['accent_color'] ) ?: '#2952ff';
 	$sidebar_bg = sanitize_hex_color( $s['sidebar_bg'] )   ?: '#ffffff';
