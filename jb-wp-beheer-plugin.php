@@ -3,7 +3,7 @@
  * Plugin Name:       JB WP Beheer Plugin
  * Plugin URI:        https://github.com/joshuabink/jb-wp-beheer-plugin
  * Description:       Professioneel klantdashboard voor WordPress websites.
- * Version:           4.4.3
+ * Version:           4.4.4
  * Author:            Joshua Bink
  * Author URI:        https://github.com/joshuabink
  * License:           GPL-2.0-or-later
@@ -33,7 +33,7 @@ if ( defined( 'JBWP_PLUGIN_VERSION' ) ) {
 // ── Plugin identity ──────────────────────────────────────────────────────────
 // Public-facing identifiers (slug, version, paths). Keep in sync with the
 // header above so the auto-updater and WP plugin screens use the same values.
-define( 'JBWP_PLUGIN_VERSION', '4.4.3' );
+define( 'JBWP_PLUGIN_VERSION', '4.4.4' );
 define( 'JBWP_PLUGIN_SLUG',    'jb-wp-beheer-plugin' );
 define( 'JBWP_PLUGIN_FILE',    __FILE__ );
 define( 'JBWP_PLUGIN_DIR',     plugin_dir_path( __FILE__ ) );
@@ -2513,12 +2513,8 @@ add_filter( 'admin_body_class', function ( $classes ) {
 } );
 
 add_action( 'admin_enqueue_scripts', function ( $hook ) {
-	// Don't load admin CSS on WooCommerce email preview pages (loaded in iframe)
-	if ( jbwp_is_wc_email_preview() ) {
-		return;
-	}
-
 	// CSS loads everywhere (branding, sidebar, adminbar, notices)
+	// Even on WC email preview pages - the CSS includes rules to hide the admin shell
 	wp_enqueue_style( 'dwmcd-admin', plugin_dir_url( __FILE__ ) . 'assets/css/admin.css', array(), DWMCD_VERSION );
 
 	// Detect settings page and dashboard page
