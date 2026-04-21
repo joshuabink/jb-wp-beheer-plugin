@@ -3,7 +3,7 @@
  * Plugin Name:       JB WP Beheer Plugin
  * Plugin URI:        https://github.com/joshuabink/jb-wp-beheer-plugin
  * Description:       Professioneel klantdashboard voor WordPress websites.
- * Version:           4.4.2
+ * Version:           4.4.3
  * Author:            Joshua Bink
  * Author URI:        https://github.com/joshuabink
  * License:           GPL-2.0-or-later
@@ -33,7 +33,7 @@ if ( defined( 'JBWP_PLUGIN_VERSION' ) ) {
 // ── Plugin identity ──────────────────────────────────────────────────────────
 // Public-facing identifiers (slug, version, paths). Keep in sync with the
 // header above so the auto-updater and WP plugin screens use the same values.
-define( 'JBWP_PLUGIN_VERSION', '4.4.2' );
+define( 'JBWP_PLUGIN_VERSION', '4.4.3' );
 define( 'JBWP_PLUGIN_SLUG',    'jb-wp-beheer-plugin' );
 define( 'JBWP_PLUGIN_FILE',    __FILE__ );
 define( 'JBWP_PLUGIN_DIR',     plugin_dir_path( __FILE__ ) );
@@ -2476,17 +2476,41 @@ function jbwp_is_wc_email_preview() {
 	if ( isset( $_GET['page'] ) && 'wc-email-preview' === $_GET['page'] ) {
 		return true;
 	}
-	// Legacy email preview parameter (WC < 8.5)
-	if ( isset( $_GET['wc_email_preview'] ) || isset( $_GET['preview_woocommerce_mail'] ) ) {
-		return true;
+	// Legacy/modern email preview parameters
+	if ( isset( $_GET['wc_email_preview'] ) || isset( $_GET['preview_woocommerce_mail'] ) || isset( $_GET['preview'] ) ) {
+		// Make sure this is actually WC email settings context (avoid false positives)
+		$page = isset( $_GET['page'] ) ? sanitize_key( $_GET['page'] ) : '';
+		$tab  = isset( $_GET['tab'] ) ? sanitize_key( $_GET['tab'] ) : '';
+		if ( 'wc-settings' === $page && 'email' === $tab ) {
+			return true;
+		}
+		// Or if it's a preview param without settings context, still treat as preview
+		if ( isset( $_GET['wc_email_preview'] ) || isset( $_GET['preview_woocommerce_mail'] ) ) {
+			return true;
+		}
 	}
 	// WooCommerce email preview AJAX action
 	if ( defined( 'DOING_AJAX' ) && DOING_AJAX && isset( $_REQUEST['action'] ) &&
 	     in_array( $_REQUEST['action'], array( 'woocommerce_email_preview', 'wc_email_preview' ), true ) ) {
 		return true;
 	}
+	// Detect REST API email preview endpoint (/wp-json/wc/v3/emails/...)
+	if ( defined( 'REST_REQUEST' ) && REST_REQUEST ) {
+		$rest_route = isset( $_GET['rest_route'] ) ? sanitize_text_field( $_GET['rest_route'] ) : '';
+		if ( strpos( $rest_route, '/wc/v' ) !== false && strpos( $rest_route, '/emails/' ) !== false ) {
+			return true;
+		}
+	}
 	return false;
 }
+
+// Add body class for WooCommerce email preview context (for CSS fallback)
+add_filter( 'admin_body_class', function ( $classes ) {
+	if ( jbwp_is_wc_email_preview() ) {
+		$classes .= ' jbwp-wc-email-preview';
+	}
+	return $classes;
+} );
 
 add_action( 'admin_enqueue_scripts', function ( $hook ) {
 	// Don't load admin CSS on WooCommerce email preview pages (loaded in iframe)
