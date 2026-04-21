@@ -2513,7 +2513,34 @@ function jbwp_is_wc_email_preview() {
 	return false;
 }
 
+// ROOT CAUSE FIX: Prevent WordPress admin template rendering for WC email preview
+// This intercepts at admin_init (early) to avoid the full admin template from rendering
+// IMPORTANT: This runs BEFORE template rendering, so we can exit cleanly without admin elements
+add_action( 'admin_init', function () {
+	// Only intervene for email preview, not other admin pages
+	if ( ! jbwp_is_wc_email_preview() ) {
+		return;
+	}
+
+	error_log( 'JBWP: WC email preview detected in admin_init - preventing admin template rendering' );
+
+	// Remove all admin-related hooks that would render the admin interface
+	// We want ONLY the email content, nothing else
+	remove_all_filters( 'admin_body_class' );
+	remove_all_actions( 'admin_head' );
+	remove_all_actions( 'admin_footer' );
+	remove_all_actions( 'admin_enqueue_scripts' );
+	remove_all_actions( 'admin_menu' );
+	remove_all_actions( 'admin_bar_menu' );
+
+	// Allow WooCommerce to handle the email preview rendering normally
+	// The key difference: by removing admin hooks, WordPress won't render the admin template,
+	// but WooCommerce's preview will still work
+	// This is the ROOT CAUSE fix - not CSS hiding, but preventing the template from loading
+}, 5 ); // Run at priority 5, BEFORE WooCommerce's admin_init hooks (default 10)
+
 // Add body class for WooCommerce email preview context (for CSS fallback)
+// This is kept as a secondary safeguard but should not be needed if admin_init works
 add_filter( 'admin_body_class', function ( $classes ) {
 	error_log( 'JBWP admin_body_class filter called. Current classes: ' . $classes );
 	$is_preview = jbwp_is_wc_email_preview();
@@ -2622,14 +2649,14 @@ add_filter( 'site_icon_meta_tags', function ( $tags ) {
 // ── Branding CSS ──────────────────────────────────────────────────────────────
 
 add_action( 'admin_head', function () {
-	// CRITICAL: Check for WooCommerce email preview and inject hiding CSS directly
-	// This bypasses the body class filter which doesn't fire at the right time for email preview iframes
+	// FALLBACK CSS: In case some admin elements still render for email preview
+	// The primary fix is in admin_init (preventing admin template), this is a secondary safeguard
 	if ( jbwp_is_wc_email_preview() ) {
-		error_log( 'JBWP: Email preview detected in admin_head - injecting CSS to hide admin shell' );
+		error_log( 'JBWP: Email preview detected in admin_head - injecting fallback CSS' );
 		echo '<style id="dwmcd-email-preview-fix">'
-			. '#wpadminbar, #adminmenuwrap, #adminmenuback, #adminmenu, .wp-header-end { display: none !important; }'
-			. '#wpwrap { margin: 0 !important; padding: 0 !important; }'
-			. '#wpcontent, #wpfooter { margin-left: 0 !important; border-top-left-radius: 0 !important; box-shadow: none !important; }'
+			. '/* Fallback CSS: hide remaining admin elements if they somehow render */'
+			. '#wpadminbar, #adminmenuwrap, #adminmenuback, #adminmenu, .wp-header-end, #screen-meta, #screen-meta-links { display: none !important; } '
+			. '#wpcontent { margin: 0 !important; padding: 0 !important; } '
 			. '</style>';
 		return;
 	}
