@@ -2514,30 +2514,41 @@ function jbwp_is_wc_email_preview() {
 }
 
 // ROOT CAUSE FIX: Prevent WordPress admin template rendering for WC email preview
-// This intercepts at admin_init (early) to avoid the full admin template from rendering
-// IMPORTANT: This runs BEFORE template rendering, so we can exit cleanly without admin elements
-add_action( 'admin_init', function () {
+// This intercepts at wp_loaded (VERY early, before admin_init) to prevent template rendering
+// CRITICAL: Must run at wp_loaded, not admin_init, because admin template loading happens AFTER admin_init
+add_action( 'wp_loaded', function () {
 	// Only intervene for email preview, not other admin pages
 	if ( ! jbwp_is_wc_email_preview() ) {
 		return;
 	}
 
-	error_log( 'JBWP: WC email preview detected in admin_init - preventing admin template rendering' );
+	error_log( 'JBWP: WC email preview detected in wp_loaded - preventing admin template rendering' );
 
-	// Remove all admin-related hooks that would render the admin interface
-	// We want ONLY the email content, nothing else
+	// At wp_loaded, WordPress hasn't yet started rendering the admin template
+	// We can safely remove admin hooks here before they're even called
 	remove_all_filters( 'admin_body_class' );
 	remove_all_actions( 'admin_head' );
 	remove_all_actions( 'admin_footer' );
 	remove_all_actions( 'admin_enqueue_scripts' );
 	remove_all_actions( 'admin_menu' );
 	remove_all_actions( 'admin_bar_menu' );
+	remove_all_actions( 'admin_init' );
 
-	// Allow WooCommerce to handle the email preview rendering normally
-	// The key difference: by removing admin hooks, WordPress won't render the admin template,
-	// but WooCommerce's preview will still work
-	// This is the ROOT CAUSE fix - not CSS hiding, but preventing the template from loading
-}, 5 ); // Run at priority 5, BEFORE WooCommerce's admin_init hooks (default 10)
+	// Remove all styles/scripts from being enqueued in admin context
+	remove_all_actions( 'wp_enqueue_scripts' );
+
+	// Most importantly: remove the dashboard/admin redirect and menu loading
+	// This prevents WordPress from rendering the admin shell
+	remove_all_actions( 'admin_notices' );
+	remove_all_actions( 'all_admin_notices' );
+	remove_all_actions( 'wp_print_styles' );
+	remove_all_actions( 'wp_print_scripts' );
+
+	error_log( 'JBWP: Removed all admin-related hooks to prevent admin template rendering' );
+
+	// Allow WooCommerce's email preview to render without the admin shell
+	// This is the ROOT CAUSE fix - preventing the template from loading entirely
+}, 1 ); // Priority 1: run VERY early, before everything else
 
 // Add body class for WooCommerce email preview context (for CSS fallback)
 // This is kept as a secondary safeguard but should not be needed if admin_init works
@@ -2649,14 +2660,17 @@ add_filter( 'site_icon_meta_tags', function ( $tags ) {
 // ── Branding CSS ──────────────────────────────────────────────────────────────
 
 add_action( 'admin_head', function () {
-	// FALLBACK CSS: In case some admin elements still render for email preview
-	// The primary fix is in admin_init (preventing admin template), this is a secondary safeguard
+	// FALLBACK CSS: If hook removal doesn't work completely, this ensures admin elements are hidden
+	// The primary fix is in wp_loaded (removing admin hooks), this is a comprehensive fallback
 	if ( jbwp_is_wc_email_preview() ) {
-		error_log( 'JBWP: Email preview detected in admin_head - injecting fallback CSS' );
+		error_log( 'JBWP: Email preview detected in admin_head - injecting comprehensive fallback CSS' );
 		echo '<style id="dwmcd-email-preview-fix">'
-			. '/* Fallback CSS: hide remaining admin elements if they somehow render */'
-			. '#wpadminbar, #adminmenuwrap, #adminmenuback, #adminmenu, .wp-header-end, #screen-meta, #screen-meta-links { display: none !important; } '
-			. '#wpcontent { margin: 0 !important; padding: 0 !important; } '
+			. 'body.wp-admin { visibility: hidden; } '
+			. 'body.wp-admin #wpbody-content, body.wp-admin .wrap, body.wp-admin .inside { visibility: visible; } '
+			. '#wpadminbar, #adminmenuwrap, #adminmenuback, #adminmenu, .wp-header-end, #screen-meta, #screen-meta-links { display: none !important; visibility: hidden !important; } '
+			. '#wpcontent { margin: 0 !important; padding: 0 !important; display: block !important; } '
+			. 'body.wp-admin, body.wp-admin * { margin: 0 !important; padding: 0 !important; border: none !important; box-shadow: none !important; } '
+			. '#wpwrap, .notice, .update-nag, #dashboard-widgets, #postbox-container-1, #postbox-container-2 { display: none !important; visibility: hidden !important; } '
 			. '</style>';
 		return;
 	}
