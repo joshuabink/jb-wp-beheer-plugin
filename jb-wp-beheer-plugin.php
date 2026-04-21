@@ -3,7 +3,7 @@
  * Plugin Name:       JB WP Beheer Plugin
  * Plugin URI:        https://github.com/joshuabink/jb-wp-beheer-plugin
  * Description:       Professioneel klantdashboard voor WordPress websites.
- * Version:           4.4.4
+ * Version:           4.4.5
  * Author:            Joshua Bink
  * Author URI:        https://github.com/joshuabink
  * License:           GPL-2.0-or-later
@@ -33,7 +33,7 @@ if ( defined( 'JBWP_PLUGIN_VERSION' ) ) {
 // ── Plugin identity ──────────────────────────────────────────────────────────
 // Public-facing identifiers (slug, version, paths). Keep in sync with the
 // header above so the auto-updater and WP plugin screens use the same values.
-define( 'JBWP_PLUGIN_VERSION', '4.4.4' );
+define( 'JBWP_PLUGIN_VERSION', '4.4.5' );
 define( 'JBWP_PLUGIN_SLUG',    'jb-wp-beheer-plugin' );
 define( 'JBWP_PLUGIN_FILE',    __FILE__ );
 define( 'JBWP_PLUGIN_DIR',     plugin_dir_path( __FILE__ ) );
@@ -2472,8 +2472,11 @@ function jbwp_render_menu_chip( $item ) {
  * - WC REST/AJAX email preview endpoints
  */
 function jbwp_is_wc_email_preview() {
+	error_log( 'JBWP: jbwp_is_wc_email_preview() called. $_GET: ' . wp_json_encode( $_GET ) );
+
 	// WooCommerce 8.6+ dedicated email preview page
 	if ( isset( $_GET['page'] ) && 'wc-email-preview' === $_GET['page'] ) {
+		error_log( 'JBWP: Preview detected via page=wc-email-preview' );
 		return true;
 	}
 	// Legacy/modern email preview parameters
@@ -2481,33 +2484,43 @@ function jbwp_is_wc_email_preview() {
 		// Make sure this is actually WC email settings context (avoid false positives)
 		$page = isset( $_GET['page'] ) ? sanitize_key( $_GET['page'] ) : '';
 		$tab  = isset( $_GET['tab'] ) ? sanitize_key( $_GET['tab'] ) : '';
+		error_log( 'JBWP: Found preview parameter. page=' . $page . ', tab=' . $tab );
 		if ( 'wc-settings' === $page && 'email' === $tab ) {
+			error_log( 'JBWP: Confirmed as WC settings email tab preview' );
 			return true;
 		}
 		// Or if it's a preview param without settings context, still treat as preview
 		if ( isset( $_GET['wc_email_preview'] ) || isset( $_GET['preview_woocommerce_mail'] ) ) {
+			error_log( 'JBWP: Email preview detected via ' . ( isset( $_GET['wc_email_preview'] ) ? 'wc_email_preview' : 'preview_woocommerce_mail' ) );
 			return true;
 		}
 	}
 	// WooCommerce email preview AJAX action
 	if ( defined( 'DOING_AJAX' ) && DOING_AJAX && isset( $_REQUEST['action'] ) &&
 	     in_array( $_REQUEST['action'], array( 'woocommerce_email_preview', 'wc_email_preview' ), true ) ) {
+		error_log( 'JBWP: Preview detected via AJAX action' );
 		return true;
 	}
 	// Detect REST API email preview endpoint (/wp-json/wc/v3/emails/...)
 	if ( defined( 'REST_REQUEST' ) && REST_REQUEST ) {
 		$rest_route = isset( $_GET['rest_route'] ) ? sanitize_text_field( $_GET['rest_route'] ) : '';
 		if ( strpos( $rest_route, '/wc/v' ) !== false && strpos( $rest_route, '/emails/' ) !== false ) {
+			error_log( 'JBWP: Preview detected via REST API' );
 			return true;
 		}
 	}
+	error_log( 'JBWP: NOT email preview. Checked all detection methods.' );
 	return false;
 }
 
 // Add body class for WooCommerce email preview context (for CSS fallback)
 add_filter( 'admin_body_class', function ( $classes ) {
-	if ( jbwp_is_wc_email_preview() ) {
+	error_log( 'JBWP admin_body_class filter called. Current classes: ' . $classes );
+	$is_preview = jbwp_is_wc_email_preview();
+	error_log( 'JBWP jbwp_is_wc_email_preview() returned: ' . ( $is_preview ? 'true' : 'false' ) );
+	if ( $is_preview ) {
 		$classes .= ' jbwp-wc-email-preview';
+		error_log( 'JBWP Added class. New classes: ' . $classes );
 	}
 	return $classes;
 } );
