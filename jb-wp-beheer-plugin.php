@@ -3,7 +3,7 @@
  * Plugin Name:       JB WP Beheer Plugin
  * Plugin URI:        https://github.com/joshuabink/jb-wp-beheer-plugin
  * Description:       Professioneel klantdashboard voor WordPress websites.
- * Version:           4.4.5
+ * Version:           4.4.6
  * Author:            Joshua Bink
  * Author URI:        https://github.com/joshuabink
  * License:           GPL-2.0-or-later
@@ -33,7 +33,7 @@ if ( defined( 'JBWP_PLUGIN_VERSION' ) ) {
 // ── Plugin identity ──────────────────────────────────────────────────────────
 // Public-facing identifiers (slug, version, paths). Keep in sync with the
 // header above so the auto-updater and WP plugin screens use the same values.
-define( 'JBWP_PLUGIN_VERSION', '4.4.5' );
+define( 'JBWP_PLUGIN_VERSION', '4.4.6' );
 define( 'JBWP_PLUGIN_SLUG',    'jb-wp-beheer-plugin' );
 define( 'JBWP_PLUGIN_FILE',    __FILE__ );
 define( 'JBWP_PLUGIN_DIR',     plugin_dir_path( __FILE__ ) );
@@ -2622,8 +2622,15 @@ add_filter( 'site_icon_meta_tags', function ( $tags ) {
 // ── Branding CSS ──────────────────────────────────────────────────────────────
 
 add_action( 'admin_head', function () {
-	// Don't output branding CSS in WooCommerce email preview iframe
+	// CRITICAL: Check for WooCommerce email preview and inject hiding CSS directly
+	// This bypasses the body class filter which doesn't fire at the right time for email preview iframes
 	if ( jbwp_is_wc_email_preview() ) {
+		error_log( 'JBWP: Email preview detected in admin_head - injecting CSS to hide admin shell' );
+		echo '<style id="dwmcd-email-preview-fix">'
+			. '#wpadminbar, #adminmenuwrap, #adminmenuback, #adminmenu, .wp-header-end { display: none !important; }'
+			. '#wpwrap { margin: 0 !important; padding: 0 !important; }'
+			. '#wpcontent, #wpfooter { margin-left: 0 !important; border-top-left-radius: 0 !important; box-shadow: none !important; }'
+			. '</style>';
 		return;
 	}
 
