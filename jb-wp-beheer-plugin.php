@@ -2513,42 +2513,53 @@ function jbwp_is_wc_email_preview() {
 	return false;
 }
 
-// ROOT CAUSE FIX: Prevent WordPress admin template rendering for WC email preview
-// This intercepts at wp_loaded (VERY early, before admin_init) to prevent template rendering
-// CRITICAL: Must run at wp_loaded, not admin_init, because admin template loading happens AFTER admin_init
+// ROOT CAUSE FIX: Strip WordPress admin HTML from WC email preview output
+// Uses output buffering with regex to remove admin elements from the rendered page
 add_action( 'wp_loaded', function () {
 	// Only intervene for email preview, not other admin pages
 	if ( ! jbwp_is_wc_email_preview() ) {
 		return;
 	}
 
-	error_log( 'JBWP: WC email preview detected in wp_loaded - preventing admin template rendering' );
+	error_log( 'JBWP: WC email preview detected - enabling output buffer to strip admin HTML' );
 
-	// At wp_loaded, WordPress hasn't yet started rendering the admin template
-	// We can safely remove admin hooks here before they're even called
-	remove_all_filters( 'admin_body_class' );
-	remove_all_actions( 'admin_head' );
-	remove_all_actions( 'admin_footer' );
-	remove_all_actions( 'admin_enqueue_scripts' );
-	remove_all_actions( 'admin_menu' );
-	remove_all_actions( 'admin_bar_menu' );
-	remove_all_actions( 'admin_init' );
+	// Start output buffering to capture the rendered HTML
+	// The callback will remove admin UI elements from the output
+	ob_start( function ( $buffer ) {
+		error_log( 'JBWP: Output buffer processing - input size: ' . strlen( $buffer ) . ' bytes' );
 
-	// Remove all styles/scripts from being enqueued in admin context
-	remove_all_actions( 'wp_enqueue_scripts' );
+		// Remove the main admin content wrapper that contains dashboard, widgets, notices
+		$buffer = preg_replace(
+			'/<div\s+id=["\']?wpbody-content["\']?[^>]*>.*?<\/div>/is',
+			'',
+			$buffer
+		);
 
-	// Most importantly: remove the dashboard/admin redirect and menu loading
-	// This prevents WordPress from rendering the admin shell
-	remove_all_actions( 'admin_notices' );
-	remove_all_actions( 'all_admin_notices' );
-	remove_all_actions( 'wp_print_styles' );
-	remove_all_actions( 'wp_print_scripts' );
+		// Remove entire wpcontent div (admin page content area)
+		$buffer = preg_replace( '/<div\s+id=["\']?wpcontent["\']?[^>]*>.*?<\/div>/is', '', $buffer );
 
-	error_log( 'JBWP: Removed all admin-related hooks to prevent admin template rendering' );
+		// Remove dashboard widgets and panels
+		$buffer = preg_replace( '/<div\s+id=["\']?dashboard["\']?[^>]*>.*?<\/div>/is', '', $buffer );
+		$buffer = preg_replace( '/<div[^>]*class=["\'][^"\']*postbox[^"\']*["\'][^>]*>.*?<\/div>/is', '', $buffer );
 
-	// Allow WooCommerce's email preview to render without the admin shell
-	// This is the ROOT CAUSE fix - preventing the template from loading entirely
-}, 1 ); // Priority 1: run VERY early, before everything else
+		// Remove WordPress admin bar
+		$buffer = preg_replace( '/<div\s+id=["\']?wpadminbar["\']?[^>]*>.*?<\/div>/is', '', $buffer );
+
+		// Remove admin menu
+		$buffer = preg_replace( '/<div\s+id=["\']?adminmenuwrap["\']?[^>]*>.*?<\/div>/is', '', $buffer );
+		$buffer = preg_replace( '/<div\s+id=["\']?adminmenuback["\']?[^>]*>.*?<\/div>/is', '', $buffer );
+
+		// Remove all notice divs (warnings, errors, success messages)
+		$buffer = preg_replace( '/<div[^>]*class=["\'][^"\']*notice[^"\']*["\'][^>]*>.*?<\/div>/is', '', $buffer );
+
+		// Clean up excess whitespace
+		$buffer = preg_replace( '/>\s+</', '><', $buffer );
+
+		error_log( 'JBWP: Output buffer processing complete - output size: ' . strlen( $buffer ) . ' bytes' );
+		return $buffer;
+	}, PHP_OUTPUT_HANDLER_REMOVABLE | PHP_OUTPUT_HANDLER_FLUSHABLE );
+
+}, 1 ); // Priority 1: run as early as possible
 
 // Add body class for WooCommerce email preview context (for CSS fallback)
 // This is kept as a secondary safeguard but should not be needed if admin_init works
