@@ -1599,15 +1599,50 @@ function jbwp_render_restriction_column( $column_name, $post_id ) {
 	// Get the restriction message
 	$message = jbwp_get_restriction_message();
 
-	// Render lock icon and message
+	// Render lock icon ONLY - message shown on hover via title
 	?>
-	<span class="jbwp-restricted-badge" title="<?php echo esc_attr( $message ); ?>">
-		<span class="dashicons dashicons-lock"></span>
-		<span class="jbwp-restricted-label"><?php echo esc_html( $message ); ?></span>
+	<span class="jbwp-restricted-badge" title="<?php echo esc_attr( $message ); ?>" style="cursor: help;">
+		<span class="dashicons dashicons-lock" style="color: #daa520; font-size: 18px;"></span>
 	</span>
 	<?php
 }
 add_action( 'manage_pages_custom_column', 'jbwp_render_restriction_column', 10, 2 );
+
+/**
+ * Hide quick edit and "Edit with Elementor" links for restricted users on Elementor pages.
+ *
+ * Hooked on post_row_actions to remove/disable action links.
+ */
+function jbwp_filter_page_actions( $actions, $post ) {
+	// Check if feature is enabled
+	if ( ! jbwp_elementor_restrictions_enabled() ) {
+		return $actions;
+	}
+
+	// Check if user has restricted role
+	if ( ! jbwp_user_has_restricted_role() ) {
+		return $actions;
+	}
+
+	// Check if post is Elementor-powered
+	if ( ! jbwp_is_elementor_page( $post->ID ) ) {
+		return $actions;
+	}
+
+	// Remove edit and quick-edit actions for restricted users
+	unset( $actions['edit'] );
+	unset( $actions['inline hide-if-no-js'] );
+
+	// Remove Elementor edit action if present
+	foreach ( $actions as $key => $action ) {
+		if ( strpos( $action, 'elementor' ) !== false ) {
+			unset( $actions[ $key ] );
+		}
+	}
+
+	return $actions;
+}
+add_filter( 'post_row_actions', 'jbwp_filter_page_actions', 10, 2 );
 
 /**
  * Enqueue CSS for Elementor restrictions styling.
