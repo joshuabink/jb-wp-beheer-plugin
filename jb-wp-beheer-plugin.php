@@ -3,7 +3,7 @@
  * Plugin Name:       JB WP Beheer Plugin
  * Plugin URI:        https://github.com/joshuabink/jb-wp-beheer-plugin
  * Description:       Professioneel klantdashboard voor WordPress websites.
- * Version:           4.5.2
+ * Version:           4.5.3
  * Author:            Joshua Bink
  * Author URI:        https://github.com/joshuabink
  * License:           GPL-2.0-or-later
@@ -33,7 +33,7 @@ if ( defined( 'JBWP_PLUGIN_VERSION' ) ) {
 // ── Plugin identity ──────────────────────────────────────────────────────────
 // Public-facing identifiers (slug, version, paths). Keep in sync with the
 // header above so the auto-updater and WP plugin screens use the same values.
-define( 'JBWP_PLUGIN_VERSION', '4.5.2' );
+define( 'JBWP_PLUGIN_VERSION', '4.5.3' );
 define( 'JBWP_PLUGIN_SLUG',    'jb-wp-beheer-plugin' );
 define( 'JBWP_PLUGIN_FILE',    __FILE__ );
 define( 'JBWP_PLUGIN_DIR',     plugin_dir_path( __FILE__ ) );
@@ -1407,8 +1407,22 @@ function jbwp_is_elementor_page( $post_id ) {
 	if ( ! $post_id ) {
 		return false;
 	}
-	return (bool) get_post_meta( $post_id, '_elementor_edit_mode', true ) ||
-	       metadata_exists( 'post', $post_id, '_elementor_data' );
+
+	// Check if post has Elementor data or edit mode meta
+	if ( metadata_exists( 'post', $post_id, '_elementor_data' ) ) {
+		return true;
+	}
+
+	if ( get_post_meta( $post_id, '_elementor_edit_mode', true ) ) {
+		return true;
+	}
+
+	// Also check if post was edited with Elementor
+	if ( get_post_meta( $post_id, '_elementor_version', true ) ) {
+		return true;
+	}
+
+	return false;
 }
 
 /**
@@ -1539,6 +1553,44 @@ function jbwp_intercept_page_edit_access() {
 	exit;
 }
 add_action( 'admin_init', 'jbwp_intercept_page_edit_access', 11 );
+
+/**
+ * Block Elementor editor access for restricted users.
+ *
+ * Hooked on elementor/init to block access before Elementor loads its editor.
+ */
+function jbwp_block_elementor_editor_access() {
+	// Check if feature is enabled
+	if ( ! jbwp_elementor_restrictions_enabled() ) {
+		return;
+	}
+
+	// Check if current user has a restricted role
+	if ( ! jbwp_user_has_restricted_role() ) {
+		return;
+	}
+
+	// Get post ID from query
+	$post_id = isset( $_REQUEST['post'] ) ? absint( $_REQUEST['post'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+	if ( ! $post_id ) {
+		return;
+	}
+
+	// Check if post is Elementor-powered
+	if ( ! jbwp_is_elementor_page( $post_id ) ) {
+		return;
+	}
+
+	// Block access - redirect and exit
+	wp_die(
+		'<h1>' . esc_html__( 'Access Denied', 'jb-wp-beheer-plugin' ) . '</h1>' .
+		'<p>' . esc_html( jbwp_get_restriction_message() ) . '</p>' .
+		'<p><a href="' . esc_url( admin_url( 'edit.php?post_type=page' ) ) . '">' . esc_html__( 'Return to Pages', 'jb-wp-beheer-plugin' ) . '</a></p>',
+		esc_html__( 'Access Denied', 'jb-wp-beheer-plugin' ),
+		array( 'response' => 403 )
+	);
+}
+add_action( 'elementor/init', 'jbwp_block_elementor_editor_access', 5 );
 
 // ── Elementor Restrictions Pages List Display ──────────────────────────────────
 
