@@ -3,7 +3,7 @@
  * Plugin Name:       JB WP Beheer Plugin
  * Plugin URI:        https://github.com/joshuabink/jb-wp-beheer-plugin
  * Description:       Professioneel klantdashboard voor WordPress websites.
- * Version:           4.5.8
+ * Version:           4.6.0
  * Author:            Joshua Bink
  * Author URI:        https://github.com/joshuabink
  * License:           GPL-2.0-or-later
@@ -33,12 +33,12 @@ if ( defined( 'JBWP_PLUGIN_VERSION' ) ) {
 // ── Plugin identity ──────────────────────────────────────────────────────────
 // Public-facing identifiers (slug, version, paths). Keep in sync with the
 // header above so the auto-updater and WP plugin screens use the same values.
-define( 'JBWP_PLUGIN_VERSION', '4.5.8' );
+define( 'JBWP_PLUGIN_VERSION', '4.6.0' );
 define( 'JBWP_PLUGIN_SLUG',    'jb-wp-beheer-plugin' );
 define( 'JBWP_PLUGIN_FILE',    __FILE__ );
 define( 'JBWP_PLUGIN_DIR',     plugin_dir_path( __FILE__ ) );
 define( 'JBWP_PLUGIN_URL',     plugin_dir_url( __FILE__ ) );
-define( 'JBWP_GITHUB_REPO',    'https://api.github.com/repos/joshuabink/jb-wp-beheer-plugin' );
+define( 'JBWP_GITHUB_REPO',    'https://github.com/joshuabink/jb-wp-beheer-plugin' );
 define( 'JBWP_GITHUB_BRANCH',  'main' );
 
 // ── Backwards-compatible internal constants ─────────────────────────────────
