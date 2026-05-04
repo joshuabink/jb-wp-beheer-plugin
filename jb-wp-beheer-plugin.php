@@ -3,7 +3,7 @@
  * Plugin Name:       JB WP Beheer Plugin
  * Plugin URI:        https://github.com/joshuabink/jb-wp-beheer-plugin
  * Description:       Professioneel klantdashboard voor WordPress websites.
- * Version:           4.5.4
+ * Version:           4.5.5
  * Author:            Joshua Bink
  * Author URI:        https://github.com/joshuabink
  * License:           GPL-2.0-or-later
@@ -33,7 +33,7 @@ if ( defined( 'JBWP_PLUGIN_VERSION' ) ) {
 // ── Plugin identity ──────────────────────────────────────────────────────────
 // Public-facing identifiers (slug, version, paths). Keep in sync with the
 // header above so the auto-updater and WP plugin screens use the same values.
-define( 'JBWP_PLUGIN_VERSION', '4.5.4' );
+define( 'JBWP_PLUGIN_VERSION', '4.5.5' );
 define( 'JBWP_PLUGIN_SLUG',    'jb-wp-beheer-plugin' );
 define( 'JBWP_PLUGIN_FILE',    __FILE__ );
 define( 'JBWP_PLUGIN_DIR',     plugin_dir_path( __FILE__ ) );
@@ -1399,8 +1399,11 @@ function jbwp_elementor_restrictions_enabled() {
 /**
  * Check if a specific post is Elementor-powered.
  *
+ * Only returns true if the post is actively using Elementor's canvas or full-width layout,
+ * not just pages that have Elementor metadata from past edits.
+ *
  * @param int $post_id Post ID to check.
- * @return bool True if post is Elementor-powered, false otherwise.
+ * @return bool True if post is using Elementor canvas/full-width layout, false otherwise.
  */
 function jbwp_is_elementor_page( $post_id ) {
 	$post_id = absint( $post_id );
@@ -1408,18 +1411,19 @@ function jbwp_is_elementor_page( $post_id ) {
 		return false;
 	}
 
-	// Check if post has Elementor data or edit mode meta
-	if ( metadata_exists( 'post', $post_id, '_elementor_data' ) ) {
+	// Check if post is using Elementor Canvas or Full Width template
+	$page_template = get_post_meta( $post_id, '_wp_page_template', true );
+	if ( $page_template && ( strpos( $page_template, 'elementor' ) !== false ) ) {
 		return true;
 	}
 
-	if ( get_post_meta( $post_id, '_elementor_edit_mode', true ) ) {
-		return true;
-	}
-
-	// Also check if post was edited with Elementor
-	if ( get_post_meta( $post_id, '_elementor_version', true ) ) {
-		return true;
+	// Also check Elementor's own setting for whether it controls the page layout
+	$elementor_controls_layout = get_post_meta( $post_id, '_elementor_page_settings', true );
+	if ( is_array( $elementor_controls_layout ) ) {
+		// If Elementor page settings exist and have content, treat as Elementor-controlled
+		if ( ! empty( $elementor_controls_layout ) ) {
+			return true;
+		}
 	}
 
 	return false;
