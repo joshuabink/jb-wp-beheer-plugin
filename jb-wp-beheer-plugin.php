@@ -3,7 +3,7 @@
  * Plugin Name:       JB WP Beheer Plugin
  * Plugin URI:        https://github.com/joshuabink/jb-wp-beheer-plugin
  * Description:       Professioneel klantdashboard voor WordPress websites.
- * Version:           4.6.3
+ * Version:           4.6.4
  * Author:            Joshua Bink
  * Author URI:        https://github.com/joshuabink
  * License:           GPL-2.0-or-later
@@ -33,7 +33,7 @@ if ( defined( 'JBWP_PLUGIN_VERSION' ) ) {
 // ── Plugin identity ──────────────────────────────────────────────────────────
 // Public-facing identifiers (slug, version, paths). Keep in sync with the
 // header above so the auto-updater and WP plugin screens use the same values.
-define( 'JBWP_PLUGIN_VERSION', '4.6.3' );
+define( 'JBWP_PLUGIN_VERSION', '4.6.4' );
 define( 'JBWP_PLUGIN_SLUG',    'jb-wp-beheer-plugin' );
 define( 'JBWP_PLUGIN_FILE',    __FILE__ );
 define( 'JBWP_PLUGIN_DIR',     plugin_dir_path( __FILE__ ) );
@@ -3527,41 +3527,29 @@ add_action( 'admin_init', function () {
 		return;
 	}
 
-	// Allow WooCommerce email preview to load without redirect
-	if ( isset( $_GET['preview'] ) && 'true' === sanitize_text_field( wp_unslash( $_GET['preview'] ) ) ) {
-		return;
-	}
-
 	global $pagenow;
 	if ( ! isset( $pagenow ) || 'index.php' !== $pagenow ) {
 		return;
 	}
 
-	// Only redirect to dashboard if index.php is accessed without any parameters
-	// (except 'page'). Allow other requests like WooCommerce email preview
-	// that use other parameters (section, tab, action, etc.)
+	// CRITICAL: Don't redirect if ANY GET parameters exist
+	// If the request has query parameters, it's not a "pure" dashboard request
+	// WooCommerce email preview, settings pages, and other admin features use parameters
+	// Only pure /wp-admin/index.php (no query string) should redirect to dashboard
 	$page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : '';
 
-	// If page parameter is set and is dashboard, we're good
+	// If already going to dashboard, don't redirect
 	if ( 'dwmcd-client-dashboard' === $page ) {
 		return;
 	}
 
-	// If page is set to something else (like wc-settings), allow it
-	if ( ! empty( $page ) ) {
+	// IMPORTANT: If there are ANY query parameters in the GET request, allow it through
+	// This protects WooCommerce email preview and other WordPress admin features
+	if ( ! empty( $_GET ) ) {
 		return;
 	}
 
-	// If OTHER parameters exist (section, tab, action, etc.), allow the request
-	// Don't redirect WooCommerce or other admin features
-	$exempt_params = array( 'section', 'tab', 'action', 'post', 'post_type', 'taxonomy', 'author', 'orderby', 's' );
-	foreach ( $exempt_params as $param ) {
-		if ( isset( $_GET[ $param ] ) ) {
-			return;  // Let this request through
-		}
-	}
-
-	// No page parameter and no exempt parameters - redirect to dashboard
+	// Pure /wp-admin/index.php with absolutely no query string - redirect to dashboard
 	wp_safe_redirect( admin_url( 'index.php?page=dwmcd-client-dashboard' ) );
 	exit;
 } );
