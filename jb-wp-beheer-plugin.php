@@ -38,7 +38,7 @@ define( 'JBWP_PLUGIN_SLUG',    'jb-wp-beheer-plugin' );
 define( 'JBWP_PLUGIN_FILE',    __FILE__ );
 define( 'JBWP_PLUGIN_DIR',     plugin_dir_path( __FILE__ ) );
 define( 'JBWP_PLUGIN_URL',     plugin_dir_url( __FILE__ ) );
-define( 'JBWP_GITHUB_REPO',    'https://github.com/joshuabink/jb-wp-beheer-plugin/' );
+define( 'JBWP_GITHUB_REPO',    'https://github.com/joshuabink/jb-wp-beheer-plugin' );
 define( 'JBWP_GITHUB_BRANCH',  'main' );
 
 // ── Backwards-compatible internal constants ─────────────────────────────────
