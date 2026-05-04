@@ -197,9 +197,18 @@ function jbwp_get_settings() {
 // ── Activation / deactivation ─────────────────────────────────────────────────
 
 function jbwp_activate() {
-	if ( ! get_option( DWMCD_OPTION ) ) {
+	// CRITICAL: Never overwrite existing settings on activation.
+	// Only create defaults if no settings exist (fresh install).
+	$existing = get_option( DWMCD_OPTION );
+	if ( false === $existing ) {
+		// Fresh install: create defaults
 		add_option( DWMCD_OPTION, jbwp_defaults() );
+	} elseif ( is_array( $existing ) ) {
+		// Upgrade: merge any new defaults into existing settings
+		$merged = wp_parse_args( $existing, jbwp_defaults() );
+		update_option( DWMCD_OPTION, $merged );
 	}
+
 	if ( is_user_logged_in() ) {
 		$user = wp_get_current_user();
 		if ( $user instanceof WP_User && $user->ID && ! $user->has_cap( DWMCD_CAP ) ) {
