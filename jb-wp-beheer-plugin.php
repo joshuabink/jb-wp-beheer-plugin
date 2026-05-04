@@ -1633,16 +1633,44 @@ function jbwp_filter_page_actions( $actions, $post ) {
 	unset( $actions['edit'] );
 	unset( $actions['inline hide-if-no-js'] );
 
-	// Remove Elementor edit action if present
+	// Remove any action containing 'elementor' string
+	$filtered_actions = array();
 	foreach ( $actions as $key => $action ) {
-		if ( strpos( $action, 'elementor' ) !== false ) {
-			unset( $actions[ $key ] );
+		// Skip if action link contains 'elementor' (case-insensitive)
+		if ( stripos( $action, 'elementor' ) === false ) {
+			$filtered_actions[ $key ] = $action;
 		}
 	}
 
-	return $actions;
+	return $filtered_actions;
 }
 add_filter( 'post_row_actions', 'jbwp_filter_page_actions', 10, 2 );
+
+/**
+ * Add CSS class to restricted pages row for additional CSS hiding.
+ *
+ * Hooked on post_class to add marker class for restricted pages.
+ */
+function jbwp_add_restricted_row_class( $classes, $post ) {
+	// Check if feature is enabled
+	if ( ! jbwp_elementor_restrictions_enabled() ) {
+		return $classes;
+	}
+
+	// Check if user has restricted role
+	if ( ! jbwp_user_has_restricted_role() ) {
+		return $classes;
+	}
+
+	// Check if post is Elementor-powered
+	if ( ! jbwp_is_elementor_page( $post->ID ) ) {
+		return $classes;
+	}
+
+	$classes[] = 'jbwp-row-restricted';
+	return $classes;
+}
+add_filter( 'post_class', 'jbwp_add_restricted_row_class', 10, 2 );
 
 /**
  * Enqueue CSS for Elementor restrictions styling.
@@ -1664,47 +1692,38 @@ function jbwp_enqueue_restriction_styles() {
 		return;
 	}
 
-	// Inline CSS for restriction badge styling
+	// Inline CSS for restriction badge styling - CLEAN lock icon only
 	$css = '
+		/* Lock icon - minimal, clean styling */
 		.jbwp-restricted-badge {
-			display: inline-flex;
-			align-items: center;
-			gap: 6px;
-			padding: 4px 8px;
-			background-color: #fff8dc;
-			border: 1px solid #daa520;
-			border-radius: 3px;
-			color: #cc6600;
-			font-size: 12px;
-			white-space: nowrap;
-		}
-
-		.jbwp-restricted-badge .dashicons {
-			font-size: 14px;
-			width: 14px;
-			height: 14px;
-			margin: 0;
-		}
-
-		.jbwp-restricted-badge .jbwp-restricted-label {
-			max-width: 200px;
-			overflow: hidden;
-			text-overflow: ellipsis;
-		}
-
-		.jbwp-restricted-badge:hover {
-			background-color: #ffeaa7;
-			border-color: #cc6600;
-		}
-
-		html.dark .jbwp-restricted-badge {
-			background-color: rgba(218, 165, 32, 0.15);
-			border-color: #cc6600;
+			display: inline-block;
+			cursor: help;
 			color: #daa520;
 		}
 
-		html.dark .jbwp-restricted-badge:hover {
-			background-color: rgba(218, 165, 32, 0.25);
+		.jbwp-restricted-badge .dashicons {
+			font-size: 20px !important;
+			width: 20px !important;
+			height: 20px !important;
+			margin: 0 !important;
+			color: #daa520 !important;
+		}
+
+		/* Hide ALL edit-related action links for restricted users */
+		.jbwp-row-restricted .row-actions a[href*="action=edit"],
+		.jbwp-row-restricted .row-actions a[href*="elementor"],
+		.jbwp-row-restricted .row-actions span[class*="inline"] {
+			display: none !important;
+		}
+
+		/* Keep only view/preview */
+		.jbwp-row-restricted .row-actions a[href*="action=view"],
+		.jbwp-row-restricted .row-actions a[href*="preview"] {
+			display: inline !important;
+		}
+
+		html.dark .jbwp-restricted-badge .dashicons {
+			color: #daa520 !important;
 		}
 	';
 
