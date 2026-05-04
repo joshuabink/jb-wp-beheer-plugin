@@ -3,7 +3,7 @@
  * Plugin Name:       JB WP Beheer Plugin
  * Plugin URI:        https://github.com/joshuabink/jb-wp-beheer-plugin
  * Description:       Professioneel klantdashboard voor WordPress websites.
- * Version:           4.4.8
+ * Version:           4.5.0
  * Author:            Joshua Bink
  * Author URI:        https://github.com/joshuabink
  * License:           GPL-2.0-or-later
@@ -33,7 +33,7 @@ if ( defined( 'JBWP_PLUGIN_VERSION' ) ) {
 // ── Plugin identity ──────────────────────────────────────────────────────────
 // Public-facing identifiers (slug, version, paths). Keep in sync with the
 // header above so the auto-updater and WP plugin screens use the same values.
-define( 'JBWP_PLUGIN_VERSION', '4.4.8' );
+define( 'JBWP_PLUGIN_VERSION', '4.5.0' );
 define( 'JBWP_PLUGIN_SLUG',    'jb-wp-beheer-plugin' );
 define( 'JBWP_PLUGIN_FILE',    __FILE__ );
 define( 'JBWP_PLUGIN_DIR',     plugin_dir_path( __FILE__ ) );
@@ -175,6 +175,13 @@ function jbwp_defaults() {
 				'target'      => '',
 				'capability'  => 'read',
 			),
+		),
+		// Elementor Restrictions
+		'elementor_restrictions' => array(
+			'restricted_roles'    => array(),
+			'enabled'             => false,
+			'show_lock_icon'      => true,
+			'restriction_message' => 'You are not authorized to edit this page type',
 		),
 	);
 }
@@ -1295,6 +1302,34 @@ function jbwp_sanitize_settings( $input ) {
 		);
 	}
 	$out['quick_actions'] = $actions;
+
+	// Elementor Restrictions
+	$out['elementor_restrictions'] = array(
+		'restricted_roles'    => array(),
+		'enabled'             => false,
+		'show_lock_icon'      => true,
+		'restriction_message' => $d['elementor_restrictions']['restriction_message'],
+	);
+	if ( isset( $input['elementor_restrictions'] ) && is_array( $input['elementor_restrictions'] ) ) {
+		$elem_rest = $input['elementor_restrictions'];
+		// Validate and filter restricted_roles against available WordPress roles
+		$valid_roles = array_keys( wp_roles()->roles );
+		$restricted_roles = array();
+		if ( isset( $elem_rest['restricted_roles'] ) && is_array( $elem_rest['restricted_roles'] ) ) {
+			foreach ( $elem_rest['restricted_roles'] as $role ) {
+				$role = sanitize_text_field( $role );
+				if ( in_array( $role, $valid_roles, true ) && 'administrator' !== $role ) {
+					$restricted_roles[] = $role;
+				}
+			}
+		}
+		$out['elementor_restrictions']['restricted_roles'] = array_unique( $restricted_roles );
+		$out['elementor_restrictions']['enabled']          = empty( $elem_rest['enabled'] ) ? 0 : 1;
+		$out['elementor_restrictions']['show_lock_icon']   = empty( $elem_rest['show_lock_icon'] ) ? 0 : 1;
+		$message = sanitize_text_field( $elem_rest['restriction_message'] ?? '' );
+		$out['elementor_restrictions']['restriction_message'] = '' !== $message ? $message : $d['elementor_restrictions']['restriction_message'];
+	}
+
 	return $out;
 }
 
@@ -1330,6 +1365,308 @@ function jbwp_sync_capabilities( $settings ) {
 }
 add_action( 'update_option_' . DWMCD_OPTION, function ( $old, $new ) { jbwp_sync_capabilities( $new ); }, 10, 2 );
 add_action( 'add_option_' . DWMCD_OPTION,    function ( $opt, $val ) { jbwp_sync_capabilities( $val ); }, 10, 2 );
+
+// ── Elementor Restrictions Utilities ────────────────────────────────────────────
+
+/**
+ * Check if Elementor plugin is active.
+ *
+ * @return bool True if Elementor is active, false otherwise.
+ */
+function jbwp_elementor_active() {
+	return defined( 'ELEMENTOR_VERSION' ) || class_exists( '\Elementor\Plugin' );
+}
+
+/**
+ * Check if Elementor restrictions feature is enabled.
+ *
+ * @return bool True if feature is enabled, false otherwise.
+ */
+function jbwp_elementor_restrictions_enabled() {
+	$settings = jbwp_get_settings();
+	return ! empty( $settings['elementor_restrictions']['enabled'] );
+}
+
+/**
+ * Check if a specific post is Elementor-powered.
+ *
+ * @param int $post_id Post ID to check.
+ * @return bool True if post is Elementor-powered, false otherwise.
+ */
+function jbwp_is_elementor_page( $post_id ) {
+	$post_id = absint( $post_id );
+	if ( ! $post_id ) {
+		return false;
+	}
+	return (bool) get_post_meta( $post_id, '_elementor_edit_mode', true ) ||
+	       metadata_exists( 'post', $post_id, '_elementor_data' );
+}
+
+/**
+ * Check if current user has a role that is restricted from editing Elementor pages.
+ *
+ * @return bool True if user has a restricted role, false otherwise.
+ */
+function jbwp_user_has_restricted_role() {
+	$settings = jbwp_get_settings();
+	$restricted_roles = (array) ( $settings['elementor_restrictions']['restricted_roles'] ?? array() );
+
+	if ( empty( $restricted_roles ) ) {
+		return false;
+	}
+
+	$user = wp_get_current_user();
+	if ( ! $user instanceof WP_User || ! $user->ID ) {
+		return false;
+	}
+
+	// Check if user has any of the restricted roles
+	$user_roles = (array) $user->roles;
+	foreach ( $user_roles as $role ) {
+		if ( in_array( $role, $restricted_roles, true ) ) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/**
+ * Get the restriction message from settings.
+ *
+ * @return string The restriction message.
+ */
+function jbwp_get_restriction_message() {
+	$settings = jbwp_get_settings();
+	return (string) ( $settings['elementor_restrictions']['restriction_message'] ?? 'You are not authorized to edit this page type' );
+}
+
+// ── Elementor Restrictions Capability Filtering ────────────────────────────────
+
+/**
+ * Filter user capabilities to prevent restricted roles from editing Elementor pages.
+ *
+ * @param array $allcaps User capabilities.
+ * @param array $cap Capability being checked.
+ * @param array $args Additional arguments.
+ * @return array Modified capabilities.
+ */
+function jbwp_filter_elementor_edit_cap( $allcaps, $cap, $args ) {
+	// Only apply to edit_page and edit_posts capabilities
+	if ( ! in_array( $cap[0], array( 'edit_page', 'edit_posts' ), true ) ) {
+		return $allcaps;
+	}
+
+	// Check if feature is enabled
+	if ( ! jbwp_elementor_restrictions_enabled() ) {
+		return $allcaps;
+	}
+
+	// Check if current user has a restricted role
+	if ( ! jbwp_user_has_restricted_role() ) {
+		return $allcaps;
+	}
+
+	// Get post ID from args
+	$post_id = isset( $args[2] ) ? absint( $args[2] ) : 0;
+	if ( ! $post_id ) {
+		return $allcaps;
+	}
+
+	// Check if post is Elementor-powered
+	if ( ! jbwp_is_elementor_page( $post_id ) ) {
+		return $allcaps;
+	}
+
+	// Restrict access to this post
+	if ( 'edit_page' === $cap[0] || 'edit_posts' === $cap[0] ) {
+		$allcaps[ $cap[0] ] = false;
+	}
+
+	return $allcaps;
+}
+add_filter( 'user_has_cap', 'jbwp_filter_elementor_edit_cap', 10, 3 );
+
+/**
+ * Intercept access to page edit screen and prevent restricted users from editing Elementor pages.
+ *
+ * Hooked on admin_init with priority 11 to run after core admin initialization.
+ */
+function jbwp_intercept_page_edit_access() {
+	// Check if we're on the edit page screen
+	if ( ! function_exists( 'get_current_screen' ) ) {
+		return;
+	}
+
+	$screen = get_current_screen();
+	if ( ! $screen || 'page' !== $screen->post_type || 'edit' !== $screen->base ) {
+		return;
+	}
+
+	// Check if feature is enabled
+	if ( ! jbwp_elementor_restrictions_enabled() ) {
+		return;
+	}
+
+	// Check if current user has a restricted role
+	if ( ! jbwp_user_has_restricted_role() ) {
+		return;
+	}
+
+	// Get post ID
+	$post_id = isset( $_GET['post'] ) ? absint( $_GET['post'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+	if ( ! $post_id ) {
+		return;
+	}
+
+	// Check if post is Elementor-powered
+	if ( ! jbwp_is_elementor_page( $post_id ) ) {
+		return;
+	}
+
+	// Redirect to pages list with an admin notice
+	$referer = wp_get_referer() ?: admin_url( 'edit.php?post_type=page' );
+	wp_safe_redirect( $referer );
+	exit;
+}
+add_action( 'admin_init', 'jbwp_intercept_page_edit_access', 11 );
+
+// ── Elementor Restrictions Pages List Display ──────────────────────────────────
+
+/**
+ * Add restriction indicator column to pages list.
+ *
+ * Hooked on manage_pages_columns to add the column header.
+ *
+ * @param array $columns Current columns.
+ * @return array Modified columns.
+ */
+function jbwp_add_restriction_column( $columns ) {
+	// Only add column if feature is enabled
+	if ( ! jbwp_elementor_restrictions_enabled() ) {
+		return $columns;
+	}
+
+	$columns['elementor_restrictions'] = '🔒 Restricties';
+	return $columns;
+}
+add_filter( 'manage_pages_columns', 'jbwp_add_restriction_column', 10, 1 );
+
+/**
+ * Render restriction column content for pages list.
+ *
+ * Hooked on manage_pages_custom_column to render the column content.
+ *
+ * @param string $column_name Current column name.
+ * @param int    $post_id     Post ID.
+ */
+function jbwp_render_restriction_column( $column_name, $post_id ) {
+	// Only render if this is the restriction column
+	if ( 'elementor_restrictions' !== $column_name ) {
+		return;
+	}
+
+	// Check if feature is enabled
+	if ( ! jbwp_elementor_restrictions_enabled() ) {
+		return;
+	}
+
+	// Check if page is Elementor-powered
+	if ( ! jbwp_is_elementor_page( $post_id ) ) {
+		return;
+	}
+
+	// Check if current user has restricted role
+	if ( ! jbwp_user_has_restricted_role() ) {
+		return;
+	}
+
+	// Check if lock icon should be shown
+	$settings = jbwp_get_settings();
+	if ( empty( $settings['elementor_restrictions']['show_lock_icon'] ) ) {
+		return;
+	}
+
+	// Get the restriction message
+	$message = jbwp_get_restriction_message();
+
+	// Render lock icon and message
+	?>
+	<span class="jbwp-restricted-badge" title="<?php echo esc_attr( $message ); ?>">
+		<span class="dashicons dashicons-lock"></span>
+		<span class="jbwp-restricted-label"><?php echo esc_html( $message ); ?></span>
+	</span>
+	<?php
+}
+add_action( 'manage_pages_custom_column', 'jbwp_render_restriction_column', 10, 2 );
+
+/**
+ * Enqueue CSS for Elementor restrictions styling.
+ *
+ * Hooked on admin_enqueue_scripts to add styling for restriction badges.
+ */
+function jbwp_enqueue_restriction_styles() {
+	if ( ! jbwp_elementor_restrictions_enabled() ) {
+		return;
+	}
+
+	// Only enqueue on pages list screen
+	if ( ! function_exists( 'get_current_screen' ) ) {
+		return;
+	}
+
+	$screen = get_current_screen();
+	if ( ! $screen || 'page' !== $screen->post_type || 'edit' !== $screen->base ) {
+		return;
+	}
+
+	// Inline CSS for restriction badge styling
+	$css = '
+		.jbwp-restricted-badge {
+			display: inline-flex;
+			align-items: center;
+			gap: 6px;
+			padding: 4px 8px;
+			background-color: #fff8dc;
+			border: 1px solid #daa520;
+			border-radius: 3px;
+			color: #cc6600;
+			font-size: 12px;
+			white-space: nowrap;
+		}
+
+		.jbwp-restricted-badge .dashicons {
+			font-size: 14px;
+			width: 14px;
+			height: 14px;
+			margin: 0;
+		}
+
+		.jbwp-restricted-badge .jbwp-restricted-label {
+			max-width: 200px;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+
+		.jbwp-restricted-badge:hover {
+			background-color: #ffeaa7;
+			border-color: #cc6600;
+		}
+
+		html.dark .jbwp-restricted-badge {
+			background-color: rgba(218, 165, 32, 0.15);
+			border-color: #cc6600;
+			color: #daa520;
+		}
+
+		html.dark .jbwp-restricted-badge:hover {
+			background-color: rgba(218, 165, 32, 0.25);
+		}
+	';
+
+	wp_add_inline_style( 'common', $css );
+}
+add_action( 'admin_enqueue_scripts', 'jbwp_enqueue_restriction_styles', 10 );
 
 // ── Admin menu ────────────────────────────────────────────────────────────────
 
@@ -1723,6 +2060,7 @@ function jbwp_render_settings() {
 				<button type="button" class="dwmcd-tab-btn" data-tab="media" role="tab" aria-selected="false" aria-controls="dwmcd-panel-media" id="dwmcd-tab-media"><span class="dashicons dashicons-plugins-checked"></span> Functies</button>
 				<button type="button" class="dwmcd-tab-btn" data-tab="settings" role="tab" aria-selected="false" aria-controls="dwmcd-panel-settings" id="dwmcd-tab-settings"><span class="dashicons dashicons-admin-settings"></span> Instellingen</button>
 				<button type="button" class="dwmcd-tab-btn" data-tab="access" role="tab" aria-selected="false" aria-controls="dwmcd-panel-access" id="dwmcd-tab-access"><span class="dashicons dashicons-admin-users"></span> Toegang</button>
+				<button type="button" class="dwmcd-tab-btn" data-tab="elementor" role="tab" aria-selected="false" aria-controls="dwmcd-panel-elementor" id="dwmcd-tab-elementor"><span class="dashicons dashicons-lock"></span> Elementor</button>
 			</div>
 
 			<form method="post" action="options.php" id="dwmcd-settings-form">
@@ -2398,6 +2736,65 @@ function jbwp_render_settings() {
 
 				</div><!-- /access panel -->
 
+				<!-- ══ TAB: ELEMENTOR ════════════════════════════════════════ -->
+				<div data-tab-panel="elementor" class="hidden" role="tabpanel" id="dwmcd-panel-elementor" aria-labelledby="dwmcd-tab-elementor">
+
+					<?php if ( ! jbwp_elementor_active() ) : ?>
+						<div class="dwmcd-card" style="padding: 20px; text-align: center; color: #666;">
+							<p style="margin: 0;"><span class="dashicons dashicons-warning" style="color: #ff9800; margin-right: 8px; vertical-align: middle;"></span>Elementor plugin is niet geïnstalleerd of niet geactiveerd.</p>
+						</div>
+					<?php else : ?>
+
+						<div class="dwmcd-card">
+							<h2>Elementor Pagina's Restricties</h2>
+							<p class="dwmcd-muted" style="margin-bottom:14px">Bepaal welke rollen Elementor-pagina's niet kunnen bewerken. Gebruikers met beperkte rollen kunnen de pagina's nog steeds zien in de overzichtspagina, maar kunnen deze niet aanpassen.</p>
+
+							<div class="dwmcd-switches" style="margin-bottom:20px">
+								<label><input type="checkbox" name="dwmcd_settings[elementor_restrictions][enabled]" value="1" <?php checked( ! empty( $settings['elementor_restrictions']['enabled'] ) ); ?>> Elementor-paginarestricties inschakelen</label>
+							</div>
+
+							<div class="dwmcd-field">
+								<label for="elementor-restricted-roles">Rollen die Elementor-pagina's niet kunnen bewerken</label>
+								<div style="margin-top: 10px; padding: 15px; background: #f5f5f5; border-radius: 4px;">
+									<?php
+									$all_roles = wp_roles()->roles;
+									$restricted_roles = $settings['elementor_restrictions']['restricted_roles'] ?? array();
+									foreach ( $all_roles as $role_key => $role_data ) {
+										if ( 'administrator' === $role_key ) {
+											continue;
+										}
+										$checked = in_array( $role_key, (array) $restricted_roles, true ) ? ' checked' : '';
+										echo '<label style="display: block; margin-bottom: 8px;"><input type="checkbox" name="dwmcd_settings[elementor_restrictions][restricted_roles][]" value="' . esc_attr( $role_key ) . '"' . $checked . '> ' . esc_html( $role_data['name'] ) . '</label>';
+									}
+									?>
+								</div>
+							</div>
+
+							<div class="dwmcd-field" style="margin-top: 20px;">
+								<label for="elementor-restriction-message">Beperkingsbericht</label>
+								<textarea name="dwmcd_settings[elementor_restrictions][restriction_message]"
+									id="elementor-restriction-message"
+									rows="3"
+									placeholder="U bent niet gemachtigd om dit type pagina te bewerken"
+									style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;"><?php echo esc_textarea( $settings['elementor_restrictions']['restriction_message'] ); ?></textarea>
+								<small style="color: #666;">Het bericht dat gebruikers zien wanneer zij proberen een beperkte Elementor-pagina te bewerken. Maximaal 255 tekens.</small>
+								<div style="font-size: 12px; color: #999; margin-top: 5px;">
+									<?php
+									$char_count = strlen( $settings['elementor_restrictions']['restriction_message'] ?? '' );
+									echo esc_html( $char_count ) . ' / 255 tekens';
+									?>
+								</div>
+							</div>
+
+							<div class="dwmcd-switches" style="margin-top: 20px;">
+								<label><input type="checkbox" name="dwmcd_settings[elementor_restrictions][show_lock_icon]" value="1" <?php checked( ! empty( $settings['elementor_restrictions']['show_lock_icon'] ) ); ?>> Slotpictogram weergeven in pagina's overzicht</label>
+							</div>
+						</div>
+
+					<?php endif; ?>
+
+				</div><!-- /elementor panel -->
+
 				<div class="dwmcd-submit">
 					<?php submit_button( 'Instellingen opslaan', 'primary', 'submit', false ); ?>
 					<button type="button" id="dwmcd-reset-settings" class="button button-secondary" style="margin-left:12px;color:#d63638;border-color:#d63638;">Reset alle instellingen</button>
@@ -2458,125 +2855,8 @@ function jbwp_render_menu_chip( $item ) {
 
 // ── Scripts & styles ──────────────────────────────────────────────────────────
 
-/**
- * Detect WooCommerce email preview context.
- *
- * WooCommerce loads email previews inside an iframe that points to an admin
- * URL. If we load our admin CSS there, the entire admin shell (sidebar bg,
- * border-radius, background) renders on top of the email content. This helper
- * returns true when the current request is an email preview so we can bail.
- *
- * Covers:
- * - WC 8.6+ dedicated preview page (?page=wc-email-preview)
- * - Legacy preview nonce approach (?wc_email_preview=...)
- * - WC REST/AJAX email preview endpoints
- */
-function jbwp_is_wc_email_preview() {
-	error_log( 'JBWP: jbwp_is_wc_email_preview() called. $_GET: ' . wp_json_encode( $_GET ) );
-
-	// WooCommerce 8.6+ dedicated email preview page
-	if ( isset( $_GET['page'] ) && 'wc-email-preview' === $_GET['page'] ) {
-		error_log( 'JBWP: Preview detected via page=wc-email-preview' );
-		return true;
-	}
-	// Legacy/modern email preview parameters
-	if ( isset( $_GET['wc_email_preview'] ) || isset( $_GET['preview_woocommerce_mail'] ) || isset( $_GET['preview'] ) ) {
-		// Make sure this is actually WC email settings context (avoid false positives)
-		$page = isset( $_GET['page'] ) ? sanitize_key( $_GET['page'] ) : '';
-		$tab  = isset( $_GET['tab'] ) ? sanitize_key( $_GET['tab'] ) : '';
-		error_log( 'JBWP: Found preview parameter. page=' . $page . ', tab=' . $tab );
-		if ( 'wc-settings' === $page && 'email' === $tab ) {
-			error_log( 'JBWP: Confirmed as WC settings email tab preview' );
-			return true;
-		}
-		// Or if it's a preview param without settings context, still treat as preview
-		if ( isset( $_GET['wc_email_preview'] ) || isset( $_GET['preview_woocommerce_mail'] ) ) {
-			error_log( 'JBWP: Email preview detected via ' . ( isset( $_GET['wc_email_preview'] ) ? 'wc_email_preview' : 'preview_woocommerce_mail' ) );
-			return true;
-		}
-	}
-	// WooCommerce email preview AJAX action
-	if ( defined( 'DOING_AJAX' ) && DOING_AJAX && isset( $_REQUEST['action'] ) &&
-	     in_array( $_REQUEST['action'], array( 'woocommerce_email_preview', 'wc_email_preview' ), true ) ) {
-		error_log( 'JBWP: Preview detected via AJAX action' );
-		return true;
-	}
-	// Detect REST API email preview endpoint (/wp-json/wc/v3/emails/...)
-	if ( defined( 'REST_REQUEST' ) && REST_REQUEST ) {
-		$rest_route = isset( $_GET['rest_route'] ) ? sanitize_text_field( $_GET['rest_route'] ) : '';
-		if ( strpos( $rest_route, '/wc/v' ) !== false && strpos( $rest_route, '/emails/' ) !== false ) {
-			error_log( 'JBWP: Preview detected via REST API' );
-			return true;
-		}
-	}
-	error_log( 'JBWP: NOT email preview. Checked all detection methods.' );
-	return false;
-}
-
-// ROOT CAUSE FIX: Strip WordPress admin HTML from WC email preview output
-// Uses output buffering with regex to remove admin elements from the rendered page
-add_action( 'wp_loaded', function () {
-	// Only intervene for email preview, not other admin pages
-	if ( ! jbwp_is_wc_email_preview() ) {
-		return;
-	}
-
-	error_log( 'JBWP: WC email preview detected - enabling output buffer to strip admin HTML' );
-
-	// Start output buffering to capture the rendered HTML
-	// The callback will remove admin UI elements from the output
-	ob_start( function ( $buffer ) {
-		error_log( 'JBWP: Output buffer processing - input size: ' . strlen( $buffer ) . ' bytes' );
-
-		// Remove the main admin content wrapper that contains dashboard, widgets, notices
-		$buffer = preg_replace(
-			'/<div\s+id=["\']?wpbody-content["\']?[^>]*>.*?<\/div>/is',
-			'',
-			$buffer
-		);
-
-		// Remove entire wpcontent div (admin page content area)
-		$buffer = preg_replace( '/<div\s+id=["\']?wpcontent["\']?[^>]*>.*?<\/div>/is', '', $buffer );
-
-		// Remove dashboard widgets and panels
-		$buffer = preg_replace( '/<div\s+id=["\']?dashboard["\']?[^>]*>.*?<\/div>/is', '', $buffer );
-		$buffer = preg_replace( '/<div[^>]*class=["\'][^"\']*postbox[^"\']*["\'][^>]*>.*?<\/div>/is', '', $buffer );
-
-		// Remove WordPress admin bar
-		$buffer = preg_replace( '/<div\s+id=["\']?wpadminbar["\']?[^>]*>.*?<\/div>/is', '', $buffer );
-
-		// Remove admin menu
-		$buffer = preg_replace( '/<div\s+id=["\']?adminmenuwrap["\']?[^>]*>.*?<\/div>/is', '', $buffer );
-		$buffer = preg_replace( '/<div\s+id=["\']?adminmenuback["\']?[^>]*>.*?<\/div>/is', '', $buffer );
-
-		// Remove all notice divs (warnings, errors, success messages)
-		$buffer = preg_replace( '/<div[^>]*class=["\'][^"\']*notice[^"\']*["\'][^>]*>.*?<\/div>/is', '', $buffer );
-
-		// Clean up excess whitespace
-		$buffer = preg_replace( '/>\s+</', '><', $buffer );
-
-		error_log( 'JBWP: Output buffer processing complete - output size: ' . strlen( $buffer ) . ' bytes' );
-		return $buffer;
-	}, PHP_OUTPUT_HANDLER_REMOVABLE | PHP_OUTPUT_HANDLER_FLUSHABLE );
-
-}, 1 ); // Priority 1: run as early as possible
-
-// Add body class for WooCommerce email preview context (for CSS fallback)
-// This is kept as a secondary safeguard but should not be needed if admin_init works
-add_filter( 'admin_body_class', function ( $classes ) {
-	error_log( 'JBWP admin_body_class filter called. Current classes: ' . $classes );
-	$is_preview = jbwp_is_wc_email_preview();
-	error_log( 'JBWP jbwp_is_wc_email_preview() returned: ' . ( $is_preview ? 'true' : 'false' ) );
-	if ( $is_preview ) {
-		$classes .= ' jbwp-wc-email-preview';
-		error_log( 'JBWP Added class. New classes: ' . $classes );
-	}
-	return $classes;
-} );
-
 add_action( 'admin_enqueue_scripts', function ( $hook ) {
 	// CSS loads everywhere (branding, sidebar, adminbar, notices)
-	// Even on WC email preview pages - the CSS includes rules to hide the admin shell
 	wp_enqueue_style( 'dwmcd-admin', plugin_dir_url( __FILE__ ) . 'assets/css/admin.css', array(), DWMCD_VERSION );
 
 	// Detect settings page and dashboard page
@@ -2671,21 +2951,6 @@ add_filter( 'site_icon_meta_tags', function ( $tags ) {
 // ── Branding CSS ──────────────────────────────────────────────────────────────
 
 add_action( 'admin_head', function () {
-	// FALLBACK CSS: If hook removal doesn't work completely, this ensures admin elements are hidden
-	// The primary fix is in wp_loaded (removing admin hooks), this is a comprehensive fallback
-	if ( jbwp_is_wc_email_preview() ) {
-		error_log( 'JBWP: Email preview detected in admin_head - injecting comprehensive fallback CSS' );
-		echo '<style id="dwmcd-email-preview-fix">'
-			. 'body.wp-admin { visibility: hidden; } '
-			. 'body.wp-admin #wpbody-content, body.wp-admin .wrap, body.wp-admin .inside { visibility: visible; } '
-			. '#wpadminbar, #adminmenuwrap, #adminmenuback, #adminmenu, .wp-header-end, #screen-meta, #screen-meta-links { display: none !important; visibility: hidden !important; } '
-			. '#wpcontent { margin: 0 !important; padding: 0 !important; display: block !important; } '
-			. 'body.wp-admin, body.wp-admin * { margin: 0 !important; padding: 0 !important; border: none !important; box-shadow: none !important; } '
-			. '#wpwrap, .notice, .update-nag, #dashboard-widgets, #postbox-container-1, #postbox-container-2 { display: none !important; visibility: hidden !important; } '
-			. '</style>';
-		return;
-	}
-
 	$s          = jbwp_get_settings();
 	$accent     = sanitize_hex_color( $s['accent_color'] ) ?: '#2952ff';
 	$sidebar_bg = sanitize_hex_color( $s['sidebar_bg'] )   ?: '#ffffff';
