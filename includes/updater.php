@@ -70,6 +70,9 @@ if ( ! function_exists( 'jbwp_bootstrap_updater' ) ) {
 			);
 
 			if ( ! is_object( $checker ) ) {
+				if ( defined( 'WP_DEBUG' ) && WP_DEBUG && function_exists( 'error_log' ) ) {
+					error_log( '[JB WP Beheer Plugin] buildUpdateChecker returned non-object. Repo: ' . JBWP_GITHUB_REPO );
+				}
 				return null;
 			}
 
@@ -105,8 +108,11 @@ if ( ! function_exists( 'jbwp_bootstrap_updater' ) ) {
 			return $instance;
 		} catch ( \Throwable $e ) {
 			// Never let an updater failure take down the site.
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG && function_exists( 'error_log' ) ) {
+			if ( function_exists( 'error_log' ) ) {
 				error_log( '[JB WP Beheer Plugin] Updater init failed: ' . $e->getMessage() );
+				error_log( '[JB WP Beheer Plugin] GitHub Repo URL: ' . JBWP_GITHUB_REPO );
+				error_log( '[JB WP Beheer Plugin] Error code: ' . $e->getCode() );
+				error_log( '[JB WP Beheer Plugin] Stack: ' . $e->getTraceAsString() );
 			}
 			return null;
 		}
