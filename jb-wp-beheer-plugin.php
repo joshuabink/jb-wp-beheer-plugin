@@ -3,7 +3,7 @@
  * Plugin Name:       JB WP Beheer Plugin
  * Plugin URI:        https://github.com/joshuabink/jb-wp-beheer-plugin
  * Description:       Professioneel klantdashboard voor WordPress websites.
- * Version:           4.6.2
+ * Version:           4.6.3
  * Author:            Joshua Bink
  * Author URI:        https://github.com/joshuabink
  * License:           GPL-2.0-or-later
@@ -33,7 +33,7 @@ if ( defined( 'JBWP_PLUGIN_VERSION' ) ) {
 // ── Plugin identity ──────────────────────────────────────────────────────────
 // Public-facing identifiers (slug, version, paths). Keep in sync with the
 // header above so the auto-updater and WP plugin screens use the same values.
-define( 'JBWP_PLUGIN_VERSION', '4.6.2' );
+define( 'JBWP_PLUGIN_VERSION', '4.6.3' );
 define( 'JBWP_PLUGIN_SLUG',    'jb-wp-beheer-plugin' );
 define( 'JBWP_PLUGIN_FILE',    __FILE__ );
 define( 'JBWP_PLUGIN_DIR',     plugin_dir_path( __FILE__ ) );
@@ -3536,11 +3536,34 @@ add_action( 'admin_init', function () {
 	if ( ! isset( $pagenow ) || 'index.php' !== $pagenow ) {
 		return;
 	}
+
+	// Only redirect to dashboard if index.php is accessed without any parameters
+	// (except 'page'). Allow other requests like WooCommerce email preview
+	// that use other parameters (section, tab, action, etc.)
 	$page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : '';
-	if ( 'dwmcd-client-dashboard' !== $page ) {
-		wp_safe_redirect( admin_url( 'index.php?page=dwmcd-client-dashboard' ) );
-		exit;
+
+	// If page parameter is set and is dashboard, we're good
+	if ( 'dwmcd-client-dashboard' === $page ) {
+		return;
 	}
+
+	// If page is set to something else (like wc-settings), allow it
+	if ( ! empty( $page ) ) {
+		return;
+	}
+
+	// If OTHER parameters exist (section, tab, action, etc.), allow the request
+	// Don't redirect WooCommerce or other admin features
+	$exempt_params = array( 'section', 'tab', 'action', 'post', 'post_type', 'taxonomy', 'author', 'orderby', 's' );
+	foreach ( $exempt_params as $param ) {
+		if ( isset( $_GET[ $param ] ) ) {
+			return;  // Let this request through
+		}
+	}
+
+	// No page parameter and no exempt parameters - redirect to dashboard
+	wp_safe_redirect( admin_url( 'index.php?page=dwmcd-client-dashboard' ) );
+	exit;
 } );
 
 // ── AJAX: GA4 refresh ─────────────────────────────────────────────────────────
