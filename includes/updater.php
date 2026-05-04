@@ -91,6 +91,19 @@ if ( ! function_exists( 'jbwp_bootstrap_updater' ) ) {
 				}
 			}
 
+			// Set GitHub API authentication token if available.
+			// This raises the rate limit from 60 to 5000 requests per hour.
+			// Token should be stored in wp-config.php:
+			// define( 'JBWP_GITHUB_TOKEN', 'your_github_token_here' );
+			if ( defined( 'JBWP_GITHUB_TOKEN' ) && JBWP_GITHUB_TOKEN ) {
+				if ( method_exists( $checker, 'getVcsApi' ) ) {
+					$vcs = $checker->getVcsApi();
+					if ( is_object( $vcs ) && method_exists( $vcs, 'setAuthentication' ) ) {
+						$vcs->setAuthentication( JBWP_GITHUB_TOKEN );
+					}
+				}
+			}
+
 			/**
 			 * Filter: jbwp_update_checker
 			 *

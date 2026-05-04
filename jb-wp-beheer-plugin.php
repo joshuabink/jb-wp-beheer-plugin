@@ -57,6 +57,17 @@ define( 'DWMCD_VERSION', JBWP_PLUGIN_VERSION );
 // The loader is fully defensive: if the lib/plugin-update-checker folder is
 // missing (e.g. partial install, manual upload, or future swap to a private
 // update server), the plugin will still boot normally without fatals.
+//
+// GITHUB API AUTHENTICATION (optional but recommended):
+// To avoid GitHub's 60 requests/hour rate limit, add a GitHub Personal Access Token
+// to wp-config.php:
+//
+//   define( 'JBWP_GITHUB_TOKEN', 'ghp_your_token_here' );
+//
+// This raises the limit to 5000 requests/hour.
+// Create a token at: https://github.com/settings/tokens/new
+// - Scopes needed: "public_repo" (read-only access to public repositories)
+// - Token never expires if not set
 require_once JBWP_PLUGIN_DIR . 'includes/updater.php';
 jbwp_bootstrap_updater();
 
