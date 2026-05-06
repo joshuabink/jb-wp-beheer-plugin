@@ -91,8 +91,16 @@ if ( ! function_exists( 'jbwp_bootstrap_updater' ) ) {
 				}
 			}
 
+			// Increase check period to reduce GitHub API calls.
+			// Default is 12 hours; we increase to 24 hours to avoid rate limiting.
+			// Without authentication, GitHub allows 60 API calls/hour unauthenticated.
+			// Checking less frequently keeps us well under that limit.
+			if ( method_exists( $checker, 'setCheckPeriod' ) ) {
+				$checker->setCheckPeriod( 24 );  // Check once per day instead of twice
+			}
+
 			// Set GitHub API authentication token if available.
-			// This raises the rate limit from 60 to 5000 requests per hour.
+			// This raises the rate limit from 60 to 5000 requests per hour and is optional.
 			// Token should be stored in wp-config.php:
 			// define( 'JBWP_GITHUB_TOKEN', 'your_github_token_here' );
 			if ( defined( 'JBWP_GITHUB_TOKEN' ) && JBWP_GITHUB_TOKEN ) {
