@@ -91,17 +91,17 @@ if ( ! function_exists( 'jbwp_bootstrap_updater' ) ) {
 				}
 			}
 
-			// Increase check period to reduce GitHub API calls.
-			// Default is 12 hours; we increase to 24 hours to avoid rate limiting.
-			// Without authentication, GitHub allows 60 API calls/hour unauthenticated.
-			// Checking less frequently keeps us well under that limit.
+			// DISABLE automatic update checking to avoid GitHub API rate limiting.
+			// Users can still manually check for updates by clicking "Check for updates"
+			// in the Plugins page. Set check period to a very high value (999 hours)
+			// so automatic checks essentially never happen.
 			if ( method_exists( $checker, 'setCheckPeriod' ) ) {
-				$checker->setCheckPeriod( 24 );  // Check once per day instead of twice
+				$checker->setCheckPeriod( 999 );  // Effectively disables automatic checks
 			}
 
-			// Set GitHub API authentication token if available.
-			// This raises the rate limit from 60 to 5000 requests per hour and is optional.
-			// Token should be stored in wp-config.php:
+			// Set GitHub API authentication token if available (optional).
+			// This is not required since users will manually check for updates.
+			// Token should be stored in wp-config.php if desired:
 			// define( 'JBWP_GITHUB_TOKEN', 'your_github_token_here' );
 			if ( defined( 'JBWP_GITHUB_TOKEN' ) && JBWP_GITHUB_TOKEN ) {
 				if ( method_exists( $checker, 'getVcsApi' ) ) {
