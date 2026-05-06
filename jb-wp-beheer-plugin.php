@@ -1617,6 +1617,12 @@ add_action( 'elementor/init', 'jbwp_block_elementor_editor_access', 5 );
  * @param array $columns Current columns.
  * @return array Modified columns.
  */
+/**
+ * Add restriction column to pages list.
+ *
+ * @param array $columns Current columns.
+ * @return array Modified columns.
+ */
 function jbwp_add_restriction_column( $columns ) {
 	// Only add column if feature is enabled
 	if ( ! jbwp_elementor_restrictions_enabled() ) {
@@ -1629,9 +1635,7 @@ function jbwp_add_restriction_column( $columns ) {
 add_filter( 'manage_pages_columns', 'jbwp_add_restriction_column', 10, 1 );
 
 /**
- * Render restriction column content for pages list.
- *
- * Hooked on manage_pages_custom_column to render the column content.
+ * Render restriction column content with lock icon in brand color.
  *
  * @param string $column_name Current column name.
  * @param int    $post_id     Post ID.
@@ -1663,17 +1667,61 @@ function jbwp_render_restriction_column( $column_name, $post_id ) {
 		return;
 	}
 
-	// Get the restriction message
+	// Get the restriction message and brand color
 	$message = jbwp_get_restriction_message();
+	$brand_color = $settings['accent_color'] ?? '#2952ff';
 
-	// Render lock icon ONLY - message shown on hover via title
+	// Render lock icon in brand color with tooltip
 	?>
-	<span class="jbwp-restricted-badge" title="<?php echo esc_attr( $message ); ?>" style="cursor: help;">
-		<span class="dashicons dashicons-lock" style="color: #daa520; font-size: 18px;"></span>
+	<span class="jbwp-restricted-badge" title="<?php echo esc_attr( $message ); ?>" style="cursor: help; display: inline-block;">
+		<span class="dashicons dashicons-lock" style="color: <?php echo esc_attr( $brand_color ); ?>; font-size: 20px; width: 20px; height: 20px;"></span>
 	</span>
 	<?php
 }
 add_action( 'manage_pages_custom_column', 'jbwp_render_restriction_column', 10, 2 );
+
+/**
+ * Add restriction lock icon to page title in pages list.
+ *
+ * Shows a lock icon before the page title using the brand accent color.
+ * Hooked on post_row_title to modify the title HTML directly.
+ *
+ * @param string $title The title HTML.
+ * @param int    $post_id Post ID.
+ * @return string Modified title HTML with lock icon.
+ */
+function jbwp_add_restriction_to_title( $title, $post_id ) {
+	// Check if feature is enabled
+	if ( ! jbwp_elementor_restrictions_enabled() ) {
+		return $title;
+	}
+
+	// Check if page is Elementor-powered
+	if ( ! jbwp_is_elementor_page( $post_id ) ) {
+		return $title;
+	}
+
+	// Check if current user has restricted role
+	if ( ! jbwp_user_has_restricted_role() ) {
+		return $title;
+	}
+
+	// Check if lock icon should be shown
+	$settings = jbwp_get_settings();
+	if ( empty( $settings['elementor_restrictions']['show_lock_icon'] ) ) {
+		return $title;
+	}
+
+	// Get the restriction message and brand color
+	$message = jbwp_get_restriction_message();
+	$brand_color = $settings['accent_color'] ?? '#2952ff';
+
+	// Prepend lock icon to the title
+	$lock_icon = '<span class="jbwp-restricted-lock-badge-title" title="' . esc_attr( $message ) . '" style="cursor: help; display: inline-block; margin-right: 8px; vertical-align: middle;"><span class="dashicons dashicons-lock" style="color: ' . esc_attr( $brand_color ) . '; font-size: 16px; width: 16px; height: 16px; display: inline-block;"></span></span>';
+
+	return $lock_icon . $title;
+}
+add_filter( 'post_row_title', 'jbwp_add_restriction_to_title', 10, 2 );
 
 /**
  * Hide quick edit and "Edit with Elementor" links for restricted users on Elementor pages.
@@ -1759,13 +1807,30 @@ function jbwp_enqueue_restriction_styles() {
 		return;
 	}
 
-	// Inline CSS for restriction badge styling - CLEAN lock icon only
+	// Inline CSS for restriction lock badge styling - both in title and column
 	$css = '
-		/* Lock icon - minimal, clean styling */
+		/* Lock icon in title - small, brand color */
+		.jbwp-restricted-lock-badge-title {
+			display: inline-block;
+			cursor: help;
+			vertical-align: middle;
+			margin-right: 8px;
+		}
+
+		.jbwp-restricted-lock-badge-title .dashicons {
+			font-size: 16px !important;
+			width: 16px !important;
+			height: 16px !important;
+			margin: 0 !important;
+			padding: 0 !important;
+			line-height: 16px !important;
+		}
+
+		/* Lock icon in separate column - larger */
 		.jbwp-restricted-badge {
 			display: inline-block;
 			cursor: help;
-			color: #daa520;
+			vertical-align: middle;
 		}
 
 		.jbwp-restricted-badge .dashicons {
@@ -1773,7 +1838,8 @@ function jbwp_enqueue_restriction_styles() {
 			width: 20px !important;
 			height: 20px !important;
 			margin: 0 !important;
-			color: #daa520 !important;
+			padding: 0 !important;
+			line-height: 20px !important;
 		}
 
 		/* Hide ALL edit-related action links for restricted users */
@@ -1787,10 +1853,6 @@ function jbwp_enqueue_restriction_styles() {
 		.jbwp-row-restricted .row-actions a[href*="action=view"],
 		.jbwp-row-restricted .row-actions a[href*="preview"] {
 			display: inline !important;
-		}
-
-		html.dark .jbwp-restricted-badge .dashicons {
-			color: #daa520 !important;
 		}
 	';
 
@@ -2877,7 +2939,7 @@ function jbwp_render_settings() {
 
 						<div class="dwmcd-card">
 							<h2>Elementor Pagina's Restricties</h2>
-							<p class="dwmcd-muted" style="margin-bottom:14px">Bepaal welke rollen Elementor-pagina's niet kunnen bewerken. Gebruikers met beperkte rollen kunnen de pagina's nog steeds zien in de overzichtspagina, maar kunnen deze niet aanpassen.</p>
+							<p class="dwmcd-muted" style="margin-bottom:14px">Bepaal welke rollen Elementor-pagina's niet kunnen bewerken. Gebruikers met beperkte rollen kunnen de pagina's nog steeds zien in de overzichtspagina met een slotje in je brand color naast de paginanaam, maar kunnen deze niet aanpassen.</p>
 
 							<div class="dwmcd-switches" style="margin-bottom:20px">
 								<label><input type="checkbox" name="dwmcd_settings[elementor_restrictions][enabled]" value="1" <?php checked( ! empty( $settings['elementor_restrictions']['enabled'] ) ); ?>> Elementor-paginarestricties inschakelen</label>
@@ -2917,7 +2979,7 @@ function jbwp_render_settings() {
 							</div>
 
 							<div class="dwmcd-switches" style="margin-top: 20px;">
-								<label><input type="checkbox" name="dwmcd_settings[elementor_restrictions][show_lock_icon]" value="1" <?php checked( ! empty( $settings['elementor_restrictions']['show_lock_icon'] ) ); ?>> Slotpictogram weergeven in pagina's overzicht</label>
+								<label><input type="checkbox" name="dwmcd_settings[elementor_restrictions][show_lock_icon]" value="1" <?php checked( ! empty( $settings['elementor_restrictions']['show_lock_icon'] ) ); ?>> Slotpictogram weergeven naast de paginanaam (in brand color)</label>
 							</div>
 						</div>
 
