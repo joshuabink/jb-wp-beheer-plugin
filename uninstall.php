@@ -3,9 +3,11 @@
  * Uninstall handler for Joshua Bink | Website beheer.
  *
  * Runs when the plugin is deleted via the WordPress admin.
- * Cleans up all options, transients, and custom capabilities.
+ * Cleans up temporary data and transients ONLY.
+ * Preserves user-configured plugin settings (logo, colors, menu order, etc.)
+ * in wp_options so they can be restored if the plugin is reinstalled.
  *
- * @package DeWebmaatjesClientDashboard
+ * @package JB_WP_Beheer_Plugin
  */
 
 if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
@@ -13,8 +15,8 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 }
 
 // Option and capability names (match main plugin file).
-$option_name     = 'dwmcd_settings';
-$capability_name = 'manage_dewebmaatjes_dashboard';
+$option_name     = 'jbwp_settings';
+$capability_name = 'manage_jbwp_dashboard';
 
 // 1. Remove the custom capability from every user who has it.
 $users = get_users( array( 'fields' => array( 'ID' ) ) );
@@ -25,19 +27,24 @@ foreach ( $users as $user_obj ) {
 	}
 }
 
-// 2. Delete plugin options.
-delete_option( $option_name );
+// 2. Delete temporary/cache data ONLY (NOT settings).
+// Settings are preserved in wp_options for re-installation.
+delete_transient( 'jbwp_ga4_data' );
+delete_transient( 'jbwp_dashboard_cache' );
+delete_option( 'jbwp_update_check_time' );
 
-// 3. Delete transients.
-delete_transient( 'dwmcd_ga4_data' );
-
-// 4. Clean up any site-meta in multisite context.
+// 3. Clean up any site-meta in multisite context.
 if ( is_multisite() ) {
 	$sites = get_sites( array( 'fields' => 'ids', 'number' => 1000 ) );
 	foreach ( $sites as $site_id ) {
 		switch_to_blog( $site_id );
-		delete_option( $option_name );
-		delete_transient( 'dwmcd_ga4_data' );
+		delete_transient( 'jbwp_ga4_data' );
+		delete_transient( 'jbwp_dashboard_cache' );
+		delete_option( 'jbwp_update_check_time' );
 		restore_current_blog();
 	}
 }
+
+// NOTE: jbwp_settings option is intentionally NOT deleted.
+// This preserves user configuration (logo, colors, menu order, etc.)
+// when the plugin is reinstalled.
