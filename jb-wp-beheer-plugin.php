@@ -194,10 +194,6 @@ function jbwp_defaults() {
 			'show_lock_icon'      => true,
 			'restriction_message' => 'You are not authorized to edit this page type',
 		),
-		// GitHub Auto-Updater
-		'github_settings' => array(
-			'api_token' => '',  // GitHub Personal Access Token for update checks
-		),
 	);
 }
 
@@ -1354,17 +1350,6 @@ function jbwp_sanitize_settings( $input ) {
 		$out['elementor_restrictions']['restriction_message'] = '' !== $message ? $message : $d['elementor_restrictions']['restriction_message'];
 	}
 
-	// GitHub Settings
-	$out['github_settings'] = array(
-		'api_token' => '',
-	);
-	if ( isset( $input['github_settings'] ) && is_array( $input['github_settings'] ) ) {
-		$gh_settings = $input['github_settings'];
-		// Sanitize GitHub token - keep only alphanumeric, hyphens, underscores (typical token format)
-		$token = sanitize_text_field( $gh_settings['api_token'] ?? '' );
-		$out['github_settings']['api_token'] = preg_replace( '/[^a-zA-Z0-9_-]/', '', $token );
-	}
-
 	return $out;
 }
 
@@ -2268,7 +2253,6 @@ function jbwp_render_settings() {
 				<button type="button" class="dwmcd-tab-btn" data-tab="settings" role="tab" aria-selected="false" aria-controls="dwmcd-panel-settings" id="dwmcd-tab-settings"><span class="dashicons dashicons-admin-settings"></span> Instellingen</button>
 				<button type="button" class="dwmcd-tab-btn" data-tab="access" role="tab" aria-selected="false" aria-controls="dwmcd-panel-access" id="dwmcd-tab-access"><span class="dashicons dashicons-admin-users"></span> Toegang</button>
 				<button type="button" class="dwmcd-tab-btn" data-tab="elementor" role="tab" aria-selected="false" aria-controls="dwmcd-panel-elementor" id="dwmcd-tab-elementor"><span class="dashicons dashicons-lock"></span> Elementor</button>
-				<button type="button" class="dwmcd-tab-btn" data-tab="github" role="tab" aria-selected="false" aria-controls="dwmcd-panel-github" id="dwmcd-tab-github"><span class="dashicons dashicons-update"></span> Updates</button>
 			</div>
 
 			<form method="post" action="options.php" id="dwmcd-settings-form">
@@ -3002,33 +2986,6 @@ function jbwp_render_settings() {
 					<?php endif; ?>
 
 				</div><!-- /elementor panel -->
-
-				<!-- ══ TAB: UPDATES ════════════════════════════════════════ -->
-				<div data-tab-panel="github" class="hidden" role="tabpanel" id="dwmcd-panel-github" aria-labelledby="dwmcd-tab-github">
-
-					<div class="dwmcd-card">
-						<h2>GitHub API Token</h2>
-						<p class="dwmcd-muted" style="margin-bottom:14px">Voeg je GitHub Personal Access Token toe voor snellere en betrouwbaardere update-controles. Dit vermijdt API rate-limiting en maakt auto-updates betrouwbaarder.</p>
-
-						<div class="dwmcd-field">
-							<label for="jbwp-github-token">GitHub Personal Access Token</label>
-							<input type="password" id="jbwp-github-token" name="dwmcd_settings[github_settings][api_token]"
-								value="<?php echo esc_attr( $settings['github_settings']['api_token'] ?? '' ); ?>"
-								placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-								style="font-family: monospace; font-size: 12px;">
-							<small class="dwmcd-help">
-								Geen token? <a href="https://github.com/settings/tokens/new" target="_blank">Maak er een op GitHub</a> (kies scope: <code>public_repo</code>).
-								<strong>Let op:</strong> dit token wordt veilig opgeslagen en alleen gebruikt voor GitHub API-aanroepen.
-							</small>
-						</div>
-
-						<div class="dwmcd-info-box">
-							<span class="dashicons dashicons-info"></span>
-							<p><strong>Hoe maak je een token?</strong> Ga naar GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token. Geef het een naam (bijv. "WordPress"), selecteer <code>public_repo</code> scope en klik Generate. Plak het token hier.</p>
-						</div>
-					</div>
-
-				</div><!-- /github panel -->
 
 				<div class="dwmcd-submit">
 					<?php submit_button( 'Instellingen opslaan', 'primary', 'submit', false ); ?>
