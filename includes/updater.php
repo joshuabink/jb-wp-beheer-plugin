@@ -100,14 +100,29 @@ if ( ! function_exists( 'jbwp_bootstrap_updater' ) ) {
 			}
 
 			// Set GitHub API authentication token if available (optional).
-			// This is not required since users will manually check for updates.
-			// Token should be stored in wp-config.php if desired:
-			// define( 'JBWP_GITHUB_TOKEN', 'your_github_token_here' );
+			// Token can be set in plugin settings (Instellingen tab) or wp-config.php.
+			// Priority: wp-config.php JBWP_GITHUB_TOKEN > plugin settings > none
+			$github_token = '';
+
+			// Check wp-config.php first (highest priority)
 			if ( defined( 'JBWP_GITHUB_TOKEN' ) && JBWP_GITHUB_TOKEN ) {
+				$github_token = JBWP_GITHUB_TOKEN;
+			} else {
+				// Fall back to plugin settings
+				if ( function_exists( 'jbwp_get_settings' ) ) {
+					$settings = jbwp_get_settings();
+					if ( isset( $settings['github_settings']['api_token'] ) && ! empty( $settings['github_settings']['api_token'] ) ) {
+						$github_token = $settings['github_settings']['api_token'];
+					}
+				}
+			}
+
+			// Apply token if found
+			if ( $github_token ) {
 				if ( method_exists( $checker, 'getVcsApi' ) ) {
 					$vcs = $checker->getVcsApi();
 					if ( is_object( $vcs ) && method_exists( $vcs, 'setAuthentication' ) ) {
-						$vcs->setAuthentication( JBWP_GITHUB_TOKEN );
+						$vcs->setAuthentication( $github_token );
 					}
 				}
 			}
