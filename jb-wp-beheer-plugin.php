@@ -71,6 +71,39 @@ define( 'DWMCD_VERSION', JBWP_PLUGIN_VERSION );
 require_once JBWP_PLUGIN_DIR . 'includes/updater.php';
 jbwp_bootstrap_updater();
 
+// ── Critical update notice for versions < 4.7.4 ─────────────────────────────────
+// Versions before 4.7.4 have a hardcoded GitHub token that's expired and causes
+// update checks to fail. Show urgent notice to upgrade.
+
+add_action( 'admin_notices', function () {
+	// Only show on plugins page and dashboard
+	$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+	if ( ! $screen || ! in_array( $screen->id, array( 'plugins', 'dashboard' ), true ) ) {
+		return;
+	}
+
+	// Only show to users who can update plugins
+	if ( ! current_user_can( 'update_plugins' ) ) {
+		return;
+	}
+
+	// Check if running version < 4.7.4
+	if ( version_compare( JBWP_PLUGIN_VERSION, '4.7.4', '>=' ) ) {
+		return;
+	}
+
+	?>
+	<div class="notice notice-error is-dismissible">
+		<p>
+			<strong>JB WP Beheer Plugin: Kritieke update vereist</strong><br>
+			Je hebt versie <?php echo esc_html( JBWP_PLUGIN_VERSION ); ?>, maar versie 4.7.4 is beschikbaar.
+			Versies voor 4.7.4 kunnen geen updates meer controleren op GitHub.
+			<strong>Update nu naar 4.7.4</strong> om automatische updates te herstellen.
+		</p>
+	</div>
+	<?php
+} );
+
 // ── Defaults ──────────────────────────────────────────────────────────────────
 
 function jbwp_defaults() {
