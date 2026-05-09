@@ -71,10 +71,46 @@ define( 'DWMCD_VERSION', JBWP_PLUGIN_VERSION );
 require_once JBWP_PLUGIN_DIR . 'includes/updater.php';
 jbwp_bootstrap_updater();
 
-// ── Critical update notice for versions < 4.7.4 ─────────────────────────────────
-// Versions before 4.7.4 have a hardcoded GitHub token that's expired and causes
-// update checks to fail. Show urgent notice to upgrade.
+// ── Daily update check health monitor ────────────────────────────────────────────
+// Test if update checker is working. If it fails (e.g., due to expired token in
+// pre-4.7.4 versions), show admin notice urging immediate upgrade to 4.7.4.
+// This works for ALL versions because the test runs locally, not via GitHub API.
 
+add_action( 'wp_loaded', function () {
+	// Only run this check in WordPress admin
+	if ( ! is_admin() ) {
+		return;
+	}
+
+	// Check only once per day to avoid spam
+	$last_check = get_transient( 'jbwp_update_check_health' );
+	if ( false !== $last_check ) {
+		return; // Already checked today
+	}
+
+	// Mark that we've checked (12 hours)
+	set_transient( 'jbwp_update_check_health', 1, 12 * HOUR_IN_SECONDS );
+
+	// For versions < 4.7.4: test if GitHub API is reachable
+	// This will fail if using the old hardcoded expired token
+	if ( version_compare( JBWP_PLUGIN_VERSION, '4.7.4', '<' ) ) {
+		// Make a simple test request to GitHub API (no auth token)
+		$response = wp_remote_head( 'https://api.github.com/repos/joshuabink/jb-wp-beheer-plugin/releases/latest', array(
+			'timeout' => 5,
+		) );
+
+		// If we get a 401 Unauthorized, it means the plugin's hardcoded token is expired
+		if ( is_wp_error( $response ) || wp_remote_retrieve_response_code( $response ) === 401 ) {
+			// This version has a broken update checker - flag it
+			update_option( 'jbwp_update_check_failed', 1 );
+		} else {
+			// Update check is working fine, clear the flag
+			delete_option( 'jbwp_update_check_failed' );
+		}
+	}
+} );
+
+// Show admin notice if update checker failed
 add_action( 'admin_notices', function () {
 	// Only show on plugins page and dashboard
 	$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
@@ -87,18 +123,19 @@ add_action( 'admin_notices', function () {
 		return;
 	}
 
-	// Check if running version < 4.7.4
-	if ( version_compare( JBWP_PLUGIN_VERSION, '4.7.4', '>=' ) ) {
+	// Check if update checker has failed
+	if ( ! get_option( 'jbwp_update_check_failed' ) ) {
 		return;
 	}
 
 	?>
 	<div class="notice notice-error is-dismissible">
 		<p>
-			<strong>JB WP Beheer Plugin: Kritieke update vereist</strong><br>
-			Je hebt versie <?php echo esc_html( JBWP_PLUGIN_VERSION ); ?>, maar versie 4.7.4 is beschikbaar.
-			Versies voor 4.7.4 kunnen geen updates meer controleren op GitHub.
-			<strong>Update nu naar 4.7.4</strong> om automatische updates te herstellen.
+			<strong>⚠️ JB WP Beheer Plugin: Kritieke update vereist</strong><br>
+			Je hebt versie <?php echo esc_html( JBWP_PLUGIN_VERSION ); ?>.
+			De automatische update checker werkt niet meer in deze versie.
+			<strong><a href="<?php echo esc_url( admin_url( 'plugins.php' ) ); ?>">Update nu naar versie 4.7.4</a></strong>
+			— dit is essentieel om automatische updates te herstellen.
 		</p>
 	</div>
 	<?php
