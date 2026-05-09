@@ -3,7 +3,7 @@
  * Plugin Name:       JB WP Beheer Plugin
  * Plugin URI:        https://github.com/joshuabink/jb-wp-beheer-plugin
  * Description:       Professioneel klantdashboard voor WordPress websites.
- * Version:           4.7.4
+ * Version:           4.7.3
  * Author:            Joshua Bink
  * Author URI:        https://github.com/joshuabink
  * License:           GPL-2.0-or-later
@@ -33,7 +33,7 @@ if ( defined( 'JBWP_PLUGIN_VERSION' ) ) {
 // ── Plugin identity ──────────────────────────────────────────────────────────
 // Public-facing identifiers (slug, version, paths). Keep in sync with the
 // header above so the auto-updater and WP plugin screens use the same values.
-define( 'JBWP_PLUGIN_VERSION', '4.7.4' );
+define( 'JBWP_PLUGIN_VERSION', '4.7.3' );
 define( 'JBWP_PLUGIN_SLUG',    'jb-wp-beheer-plugin' );
 define( 'JBWP_PLUGIN_FILE',    __FILE__ );
 define( 'JBWP_PLUGIN_DIR',     plugin_dir_path( __FILE__ ) );
@@ -70,76 +70,6 @@ define( 'DWMCD_VERSION', JBWP_PLUGIN_VERSION );
 // - Token never expires if not set
 require_once JBWP_PLUGIN_DIR . 'includes/updater.php';
 jbwp_bootstrap_updater();
-
-// ── Daily update check health monitor ────────────────────────────────────────────
-// Test if update checker is working. If it fails (e.g., due to expired token in
-// pre-4.7.4 versions), show admin notice urging immediate upgrade to 4.7.4.
-// This works for ALL versions because the test runs locally, not via GitHub API.
-
-add_action( 'wp_loaded', function () {
-	// Only run this check in WordPress admin
-	if ( ! is_admin() ) {
-		return;
-	}
-
-	// Check only once per day to avoid spam
-	$last_check = get_transient( 'jbwp_update_check_health' );
-	if ( false !== $last_check ) {
-		return; // Already checked today
-	}
-
-	// Mark that we've checked (12 hours)
-	set_transient( 'jbwp_update_check_health', 1, 12 * HOUR_IN_SECONDS );
-
-	// For versions < 4.7.4: test if GitHub API is reachable
-	// This will fail if using the old hardcoded expired token
-	if ( version_compare( JBWP_PLUGIN_VERSION, '4.7.4', '<' ) ) {
-		// Make a simple test request to GitHub API (no auth token)
-		$response = wp_remote_head( 'https://api.github.com/repos/joshuabink/jb-wp-beheer-plugin/releases/latest', array(
-			'timeout' => 5,
-		) );
-
-		// If we get a 401 Unauthorized, it means the plugin's hardcoded token is expired
-		if ( is_wp_error( $response ) || wp_remote_retrieve_response_code( $response ) === 401 ) {
-			// This version has a broken update checker - flag it
-			update_option( 'jbwp_update_check_failed', 1 );
-		} else {
-			// Update check is working fine, clear the flag
-			delete_option( 'jbwp_update_check_failed' );
-		}
-	}
-} );
-
-// Show admin notice if update checker failed
-add_action( 'admin_notices', function () {
-	// Only show on plugins page and dashboard
-	$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
-	if ( ! $screen || ! in_array( $screen->id, array( 'plugins', 'dashboard' ), true ) ) {
-		return;
-	}
-
-	// Only show to users who can update plugins
-	if ( ! current_user_can( 'update_plugins' ) ) {
-		return;
-	}
-
-	// Check if update checker has failed
-	if ( ! get_option( 'jbwp_update_check_failed' ) ) {
-		return;
-	}
-
-	?>
-	<div class="notice notice-error is-dismissible">
-		<p>
-			<strong>⚠️ JB WP Beheer Plugin: Kritieke update vereist</strong><br>
-			Je hebt versie <?php echo esc_html( JBWP_PLUGIN_VERSION ); ?>.
-			De automatische update checker werkt niet meer in deze versie.
-			<strong><a href="<?php echo esc_url( admin_url( 'plugins.php' ) ); ?>">Update nu naar versie 4.7.4</a></strong>
-			— dit is essentieel om automatische updates te herstellen.
-		</p>
-	</div>
-	<?php
-} );
 
 // ── Defaults ──────────────────────────────────────────────────────────────────
 
@@ -264,8 +194,6 @@ function jbwp_defaults() {
 			'show_lock_icon'      => true,
 			'restriction_message' => 'You are not authorized to edit this page type',
 		),
-		// GitHub API Token (optional - for faster update checks)
-		'github_token'           => '',
 	);
 }
 
@@ -1188,9 +1116,9 @@ function jbwp_build_menu_config( $settings ) {
 		}
 		$seen[ $slug ] = true;
 		$result[]      = array_merge( $defaults, $by_slug[ $slug ], array(
-			'visible_for_roles' => (array) ( $config['visible_for_roles'] ?? array() ),
-			'custom_label'      => $config['custom_label'] ?? '',
-			'group'             => $config['group'] ?? '',
+			'visible'      => isset( $config['visible'] ) ? (int) $config['visible'] : 1,
+			'custom_label' => $config['custom_label'] ?? '',
+			'group'        => $config['group'] ?? '',
 		) );
 	}
 
@@ -1296,25 +1224,15 @@ function jbwp_sanitize_settings( $input ) {
 
 				// Items
 				$valid_order = array();
-				// Get all available WordPress roles for validation
-				$all_role_slugs = array_keys( wp_roles()->get_names() );
-
 				foreach ( (array) ( $menu_data['items'] ?? array() ) as $item ) {
 					if ( ! is_array( $item ) || empty( $item['slug'] ) ) {
 						continue;
 					}
-
-					// Sanitize visible_for_roles: ensure it's an array of valid role slugs
-					$visible_for_roles = (array) ( $item['visible_for_roles'] ?? array() );
-					$visible_for_roles = array_filter( $visible_for_roles, function( $role ) use ( $all_role_slugs ) {
-						return in_array( sanitize_text_field( $role ), $all_role_slugs, true );
-					} );
-
 					$valid_order[] = array(
-						'slug'                => sanitize_text_field( $item['slug'] ),
-						'visible_for_roles'   => array_values( $visible_for_roles ), // Re-index array
-						'custom_label'        => sanitize_text_field( $item['custom_label'] ?? '' ),
-						'group'               => sanitize_text_field( $item['group'] ?? '' ),
+						'slug'         => sanitize_text_field( $item['slug'] ),
+						'visible'      => empty( $item['visible'] ) ? 0 : 1,
+						'custom_label' => sanitize_text_field( $item['custom_label'] ?? '' ),
+						'group'        => sanitize_text_field( $item['group'] ?? '' ),
 					);
 				}
 				$out['menu_order'] = $valid_order;
@@ -1431,14 +1349,6 @@ function jbwp_sanitize_settings( $input ) {
 		$message = sanitize_text_field( $elem_rest['restriction_message'] ?? '' );
 		$out['elementor_restrictions']['restriction_message'] = '' !== $message ? $message : $d['elementor_restrictions']['restriction_message'];
 	}
-
-	// GitHub API Token (optional - for faster update checks)
-	$github_token = sanitize_text_field( $input['github_token'] ?? '' );
-	// Validate that it looks like a GitHub token (starts with ghp_ or gho_)
-	if ( ! empty( $github_token ) && ! preg_match( '/^(ghp_|gho_)[a-zA-Z0-9_]{36,}$/', $github_token ) ) {
-		$github_token = '';
-	}
-	$out['github_token'] = $github_token;
 
 	return $out;
 }
@@ -2976,20 +2886,6 @@ function jbwp_render_settings() {
 						</div>
 					</div>
 
-					<div class="dwmcd-card">
-						<h2>GitHub API Token <span class="dwmcd-optional">(optioneel)</span></h2>
-						<p class="dwmcd-muted" style="margin-bottom:14px">Voeg een GitHub Personal Access Token toe voor snellere update checks. Zonder token: 60 verzoeken/uur. Met token: 5000 verzoeken/uur. Voor de meeste sites is dit niet nodig.</p>
-						<div class="dwmcd-field">
-							<label>GitHub Token</label>
-							<input type="password" name="dwmcd_settings[github_token]" value="<?php echo esc_attr( $settings['github_token'] ); ?>" placeholder="ghp_xxxxx... of gho_xxxxx..." style="max-width:400px">
-							<small class="dwmcd-help">
-								Maak een token aan op: <a href="https://github.com/settings/tokens/new" target="_blank">github.com/settings/tokens/new</a><br>
-								Scopes nodig: <code>public_repo</code> (alleen-lezen)<br>
-								Het token wordt versleuteld opgeslagen.
-							</small>
-						</div>
-					</div>
-
 				</div><!-- /settings panel -->
 
 				<!-- ══ TAB: TOEGANG ══════════════════════════════════════════ -->
@@ -3119,7 +3015,7 @@ function jbwp_render_settings() {
 function jbwp_render_menu_chip( $item ) {
 	$slug    = $item['slug'] ?? '';
 	$label   = $item['label'] ?? $slug;
-	$visible_for_roles = (array) ( $item['visible_for_roles'] ?? array() );
+	$visible = isset( $item['visible'] ) ? (int) $item['visible'] : 1;
 	$custom  = $item['custom_label'] ?? '';
 	$icon    = $item['icon'] ?? '';
 
@@ -3132,50 +3028,19 @@ function jbwp_render_menu_chip( $item ) {
 	} else {
 		$icon_html = '<span class="dashicons dashicons-menu dwmcd-chip-dashicon"></span>';
 	}
-
-	// Get all WordPress roles
-	$all_roles = array();
-	if ( function_exists( 'wp_roles' ) ) {
-		$all_roles = wp_roles()->get_names();
-	}
 	?>
-	<div class="dwmcd-menu-chip<?php echo empty( $visible_for_roles ) ? ' is-hidden' : ''; ?>"
+	<div class="dwmcd-menu-chip<?php echo $visible ? '' : ' is-hidden'; ?>"
 		draggable="true"
 		data-slug="<?php echo esc_attr( $slug ); ?>">
 		<span class="dwmcd-chip-drag dashicons dashicons-move"></span>
 		<?php echo $icon_html; ?>
 		<span class="dwmcd-chip-label"><?php echo esc_html( $label ); ?></span>
-		<input type="text" class="dwmcd-chip-custom-label" value="<?php echo esc_attr( $custom ); ?>" placeholder="Aangepaste naam..." title="Aangepaste naam">
+		<input type="text" class="dwmcd-chip-custom-label" value="<?php echo esc_attr( $custom ); ?>" placeholder="Aanpassen..." title="Aangepaste naam">
 		<button type="button" class="dwmcd-chip-move-btn" data-chip-move="up" title="Omhoog" aria-label="Omhoog verplaatsen"><span class="dashicons dashicons-arrow-up-alt2"></span></button>
 		<button type="button" class="dwmcd-chip-move-btn" data-chip-move="down" title="Omlaag" aria-label="Omlaag verplaatsen"><span class="dashicons dashicons-arrow-down-alt2"></span></button>
-
-		<!-- Role selector button to show/hide roles modal -->
-		<button type="button" class="dwmcd-chip-roles-btn" title="Rollen die dit item mogen zien">
-			<span class="dashicons dashicons-visibility"></span>
+		<button type="button" class="dwmcd-chip-visibility" data-visible="<?php echo esc_attr( $visible ); ?>" title="<?php echo $visible ? 'Zichtbaar — klik om te verbergen' : 'Verborgen — klik om te tonen'; ?>" aria-label="<?php echo $visible ? 'Zichtbaar — klik om te verbergen' : 'Verborgen — klik om te tonen'; ?>">
+			<span class="dashicons <?php echo $visible ? 'dashicons-visibility' : 'dashicons-hidden'; ?>"></span>
 		</button>
-
-		<!-- Hidden data store for visible roles -->
-		<input type="hidden" class="dwmcd-chip-visible-for-roles" value="<?php echo esc_attr( json_encode( $visible_for_roles ) ); ?>">
-
-		<!-- Role selection modal (initially hidden) -->
-		<div class="dwmcd-chip-roles-modal" style="display:none;">
-			<div class="dwmcd-chip-roles-modal-content">
-				<h4>Zichtbaar voor rollen:</h4>
-				<div class="dwmcd-chip-roles-list">
-					<?php foreach ( $all_roles as $role_slug => $role_name ) : ?>
-						<label>
-							<input type="checkbox" class="dwmcd-role-checkbox" value="<?php echo esc_attr( $role_slug ); ?>"
-								<?php checked( in_array( $role_slug, $visible_for_roles, true ) ); ?>>
-							<?php echo esc_html( $role_name ); ?>
-						</label>
-					<?php endforeach; ?>
-				</div>
-				<div class="dwmcd-chip-roles-modal-actions">
-					<button type="button" class="dwmcd-chip-roles-save">Opslaan</button>
-					<button type="button" class="dwmcd-chip-roles-cancel">Annuleren</button>
-				</div>
-			</div>
-		</div>
 	</div>
 	<?php
 }
@@ -3408,40 +3273,21 @@ add_action( 'admin_menu', function () {
 // ── Menu — verberg items voor niet-beheerders ─────────────────────────────────
 
 add_action( 'admin_menu', function () {
+	if ( current_user_can( 'manage_options' ) ) {
+		return;
+	}
 	$s = jbwp_get_settings();
 
-	// Hide comments menu if setting enabled
 	if ( ! empty( $s['hide_comments'] ) ) {
 		remove_menu_page( 'edit-comments.php' );
 	}
-
-	// Hide tools menu if setting enabled
 	if ( ! empty( $s['hide_tools'] ) ) {
 		remove_menu_page( 'tools.php' );
 	}
 
-	// Menu organizer: per-item role-based visibility
 	if ( ! empty( $s['menu_organizer_enabled'] ) ) {
-		$user = wp_get_current_user();
-		$user_roles = (array) $user->roles;
-
 		foreach ( (array) $s['menu_order'] as $item ) {
-			if ( empty( $item['slug'] ) ) {
-				continue;
-			}
-
-			// Get visible_for_roles (whitelist of roles that CAN see this item)
-			$visible_for = (array) ( $item['visible_for_roles'] ?? array() );
-
-			// If list is empty, nobody can see it (item is completely hidden)
-			if ( empty( $visible_for ) ) {
-				remove_menu_page( $item['slug'] );
-				continue;
-			}
-
-			// If user's role is NOT in the visible_for list, hide the item
-			$user_has_access = ! empty( array_intersect( $user_roles, $visible_for ) );
-			if ( ! $user_has_access ) {
+			if ( empty( $item['visible'] ) && ! empty( $item['slug'] ) ) {
 				remove_menu_page( $item['slug'] );
 			}
 		}

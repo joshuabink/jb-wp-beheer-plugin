@@ -99,27 +99,22 @@ if ( ! function_exists( 'jbwp_bootstrap_updater' ) ) {
 				$checker->setCheckPeriod( 999 );  // Effectively disables automatic checks
 			}
 
-			// Set GitHub API authentication token (optional - read-only).
-			//
-			// This improves GitHub API rate-limiting for update checks.
-			// Without a token: 60 requests/hour (usually sufficient for update checks)
-			// With a token: 5000 requests/hour
-			//
-			// Token sources (in priority order):
-			// 1. WordPress option (dwmcd_settings[github_token]) - set in admin UI
-			// 2. wp-config.php constant: define( 'JBWP_GITHUB_TOKEN', '...' );
-			// 3. Environment variable: JBWP_GITHUB_TOKEN
-			//
-			// For most sites, no token is needed. Only add if hitting rate limits.
+			// Try to set GitHub API authentication token (public_repo scope only - read-only).
+			// This eliminates GitHub API rate-limiting for update checks.
+			// Token can come from multiple sources (priority order):
+			// 1. WordPress option 'dwmcd_settings' → 'github_token'
+			// 2. Environment variable 'JBWP_GITHUB_TOKEN'
+			// 3. PHP constant 'JBWP_GITHUB_TOKEN'
+			// If no token is available, the update checker will work with default rate limits.
 			$github_token = '';
 
-			// Try WordPress option first (admin UI)
+			// Check WordPress settings first
 			$settings = get_option( 'dwmcd_settings', array() );
 			if ( ! empty( $settings['github_token'] ) ) {
 				$github_token = sanitize_text_field( $settings['github_token'] );
 			}
 
-			// Fall back to wp-config.php constant
+			// Fall back to constant if defined
 			if ( empty( $github_token ) && defined( 'JBWP_GITHUB_TOKEN' ) ) {
 				$github_token = JBWP_GITHUB_TOKEN;
 			}
@@ -129,7 +124,7 @@ if ( ! function_exists( 'jbwp_bootstrap_updater' ) ) {
 				$github_token = getenv( 'JBWP_GITHUB_TOKEN' ) ?: '';
 			}
 
-			// Apply token if available
+			// Set authentication if token is available
 			if ( ! empty( $github_token ) ) {
 				if ( method_exists( $checker, 'getVcsApi' ) ) {
 					$vcs = $checker->getVcsApi();
