@@ -194,6 +194,8 @@ function jbwp_defaults() {
 			'show_lock_icon'      => true,
 			'restriction_message' => 'You are not authorized to edit this page type',
 		),
+		// GitHub API Token (optional - for faster update checks)
+		'github_token'           => '',
 	);
 }
 
@@ -1359,6 +1361,14 @@ function jbwp_sanitize_settings( $input ) {
 		$message = sanitize_text_field( $elem_rest['restriction_message'] ?? '' );
 		$out['elementor_restrictions']['restriction_message'] = '' !== $message ? $message : $d['elementor_restrictions']['restriction_message'];
 	}
+
+	// GitHub API Token (optional - for faster update checks)
+	$github_token = sanitize_text_field( $input['github_token'] ?? '' );
+	// Validate that it looks like a GitHub token (starts with ghp_ or gho_)
+	if ( ! empty( $github_token ) && ! preg_match( '/^(ghp_|gho_)[a-zA-Z0-9_]{36,}$/', $github_token ) ) {
+		$github_token = '';
+	}
+	$out['github_token'] = $github_token;
 
 	return $out;
 }
@@ -2893,6 +2903,20 @@ function jbwp_render_settings() {
 							<label>Post type slugs <span class="dwmcd-optional">(kommagescheiden)</span></label>
 							<input type="text" name="dwmcd_settings[article_cpt_slug]" value="<?php echo esc_attr( $settings['article_cpt_slug'] ); ?>" placeholder="post">
 							<small class="dwmcd-help">Standaard: <code>post</code>. Meerdere post types scheiden met komma's, bijv: <code>post,nieuws,vacature,product</code>. Pagina's worden altijd getoond ongeacht deze instelling.</small>
+						</div>
+					</div>
+
+					<div class="dwmcd-card">
+						<h2>GitHub API Token <span class="dwmcd-optional">(optioneel)</span></h2>
+						<p class="dwmcd-muted" style="margin-bottom:14px">Voeg een GitHub Personal Access Token toe voor snellere update checks. Zonder token: 60 verzoeken/uur. Met token: 5000 verzoeken/uur. Voor de meeste sites is dit niet nodig.</p>
+						<div class="dwmcd-field">
+							<label>GitHub Token</label>
+							<input type="password" name="dwmcd_settings[github_token]" value="<?php echo esc_attr( $settings['github_token'] ); ?>" placeholder="ghp_xxxxx... of gho_xxxxx..." style="max-width:400px">
+							<small class="dwmcd-help">
+								Maak een token aan op: <a href="https://github.com/settings/tokens/new" target="_blank">github.com/settings/tokens/new</a><br>
+								Scopes nodig: <code>public_repo</code> (alleen-lezen)<br>
+								Het token wordt versleuteld opgeslagen.
+							</small>
 						</div>
 					</div>
 
