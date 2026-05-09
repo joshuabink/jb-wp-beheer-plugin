@@ -99,12 +99,12 @@ if ( ! function_exists( 'jbwp_bootstrap_updater' ) ) {
 				$checker->setCheckPeriod( 999 );  // Effectively disables automatic checks
 			}
 
-			// Set GitHub API authentication token (public_repo scope only - read-only).
+			// Set GitHub API authentication token (read-only).
 			// This eliminates GitHub API rate-limiting for update checks.
-			// Token: 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 (public_repo scope)
-			$github_token = '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';
+			// Define in wp-config.php: define( 'JBWP_GITHUB_TOKEN', 'your_token_here' );
+			$github_token = defined( 'JBWP_GITHUB_TOKEN' ) ? JBWP_GITHUB_TOKEN : '';
 
-			if ( $github_token ) {
+			if ( ! empty( $github_token ) ) {
 				if ( method_exists( $checker, 'getVcsApi' ) ) {
 					$vcs = $checker->getVcsApi();
 					if ( is_object( $vcs ) && method_exists( $vcs, 'setAuthentication' ) ) {
