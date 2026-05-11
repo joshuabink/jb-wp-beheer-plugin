@@ -485,6 +485,7 @@ window.DWMCD = window.DWMCD || { typeHints: {}, typePlaceholders: {}, noTargetTy
         icon.className = 'dashicons ' + (visible ? 'dashicons-visibility' : 'dashicons-hidden');
       }
       chip.classList.toggle('is-hidden', !visible);
+      syncMenuData();
     });
   }
 
