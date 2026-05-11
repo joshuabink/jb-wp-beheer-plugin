@@ -99,33 +99,12 @@ if ( ! function_exists( 'jbwp_bootstrap_updater' ) ) {
 				$checker->setCheckPeriod( 999 );  // Effectively disables automatic checks
 			}
 
-			// Try to set GitHub API authentication token (public_repo scope only - read-only).
+			// Set GitHub API authentication token (public_repo scope only - read-only).
 			// This eliminates GitHub API rate-limiting for update checks.
-			// Token can come from multiple sources (priority order):
-			// 1. WordPress option 'dwmcd_settings' → 'github_token'
-			// 2. Environment variable 'JBWP_GITHUB_TOKEN'
-			// 3. PHP constant 'JBWP_GITHUB_TOKEN'
-			// If no token is available, the update checker will work with default rate limits.
-			$github_token = '';
+			// Token: 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 (public_repo scope)
+			$github_token = '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';
 
-			// Check WordPress settings first
-			$settings = get_option( 'dwmcd_settings', array() );
-			if ( ! empty( $settings['github_token'] ) ) {
-				$github_token = sanitize_text_field( $settings['github_token'] );
-			}
-
-			// Fall back to constant if defined
-			if ( empty( $github_token ) && defined( 'JBWP_GITHUB_TOKEN' ) ) {
-				$github_token = JBWP_GITHUB_TOKEN;
-			}
-
-			// Fall back to environment variable
-			if ( empty( $github_token ) ) {
-				$github_token = getenv( 'JBWP_GITHUB_TOKEN' ) ?: '';
-			}
-
-			// Set authentication if token is available
-			if ( ! empty( $github_token ) ) {
+			if ( $github_token ) {
 				if ( method_exists( $checker, 'getVcsApi' ) ) {
 					$vcs = $checker->getVcsApi();
 					if ( is_object( $vcs ) && method_exists( $vcs, 'setAuthentication' ) ) {
